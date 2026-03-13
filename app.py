@@ -31,8 +31,19 @@ class SSHBridge:
 
     def connect(self, host, port, user, password=None):
         try:
+            # PTT or BBS might need empty password string instead of None
+            pwd = password if password else ""
             print(f"[*] Attempting SSH connection for {user} at {host}:{port}...")
-            self.ssh.connect(host, port=int(port), username=user, password=password, timeout=10)
+            
+            self.ssh.connect(
+                host, 
+                port=int(port), 
+                username=user, 
+                password=pwd, 
+                timeout=15,
+                allow_agent=False,     # Avoid using local agent keys
+                look_for_keys=False    # Avoid using local key files
+            )
             self.channel = self.ssh.invoke_shell(term='xterm', width=80, height=24)
             self.channel.setblocking(0)
             print(f"[+] SSH connection established for {self.sid}")
