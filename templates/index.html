@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSSH</title>
+    <!-- Local Fallback Assets -->
+    <link rel="stylesheet" href="/static/css/xterm.css" onerror="this.href='https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css'" />
+    <script src="/static/js/xterm.js" onerror="this.src='https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js'"></script>
+    <script src="/static/js/socket.io.min.js" onerror="this.src='https://cdn.socket.io/4.5.4/socket.io.min.js'"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        #terminal { height: 100vh; width: 100vw; }
+        #controls { 
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); 
+            z-index: 100; background: #222; padding: 30px; 
+            border-radius: 8px; color: white; border: 1px solid #444;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            width: 300px;
+        }
+        #controls h2 { margin-top: 0; color: #0a84ff; font-size: 1.2rem; }
+        #controls input { 
+            display: block; width: 100%; margin-bottom: 15px; 
+            padding: 10px; background: #333; border: 1px solid #555; 
+            color: white; border-radius: 4px; box-sizing: border-box;
+        }
+        #controls button { 
+            width: 100%; padding: 12px; background: #0a84ff; 
+            border: none; color: white; border-radius: 4px; 
+            cursor: pointer; font-weight: bold;
+        }
+        #controls button:hover { background: #007aff; }
+        #status-bar {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: #111; color: #888; font-size: 12px;
+            padding: 2px 10px; z-index: 50; border-top: 1px solid #222;
+        }
+        .error-msg { color: #ff453a; font-size: 13px; margin-bottom: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h2>WebSSH Login</h2>
+        <div id="errorBox" class="error-msg"></div>
+        <input type="text" id="username" placeholder="Username" value="aska">
+        <input type="password" id="password" placeholder="Password (Optional)">
+        <button id="connectBtn">Connect to WSL</button>
+    </div>
+    
+    <div id="terminal"></div>
+    <div id="status-bar">Socket: <span id="socketStatus">Disconnected</span></div>
+
+    <script>
+        const terminalContainer = document.getElementById('terminal');
+        const statusEl = document.getElementById('socketStatus');
+        const errorEl = document.getElementById('errorBox');
+        
+        const term = new Terminal({
+            cursorBlink: true,
+            theme: { background: '#1e1e1e' },
+            fontFamily: 'Consolas, "Courier New", monospace',
+            fontSize: 14
+        });
+        term.open(terminalContainer);
+        term.write('Waiting for socket connection...\r\n');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token') || "{{ token }}";
+        
+        const socket = io({
+            query: { token: token },
+            reconnectionAttempts: 5,
+            timeout: 10000
+        });
+
+        // Handle Socket events
+        socket.on('connect', () => {
+            statusEl.innerText = "Connected";
+            statusEl.style.color = "#34c759";
+            term.write('\r\n[Socket Connected! Ready to SSH]\r\n');
+        });
+
+        socket.on('connect_error', (err) => {
+            statusEl.innerText = "Error: " + err.message;
+            statusEl.style.color = "#ff453a";
+            term.write(`\r\n[Socket Error: ${err.message}]\r\n`);
+        });
+
+        socket.on('disconnect', (reason) => {
+            statusEl.innerText = "Disconnected (" + reason + ")";
+            statusEl.style.color = "#ff9f0a";
+            document.getElementById('controls').style.display = 'block';
+            term.write('\r\n[Socket Disconnected]\r\n');
+        });
+
+        // Resize logic
+        function resize() {
+            const cols = Math.floor(window.innerWidth / 9); 
+            const rows = Math.floor(window.innerHeight / 18);
+            term.resize(cols, rows);
+            if (socket.connected) {
+                socket.emit('resize', { cols, rows });
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        // SSH Action
+        document.getElementById('connectBtn').onclick = () => {
+            if (!socket.connected) {
+                alert("Wait for socket to connect first!");
+                return;
+            }
+            
+            errorEl.style.display = 'none';
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            console.log("Starting SSH for user:", username);
+            socket.emit('start_ssh', { username, password });
+            
+            // Give visual feedback
+            document.getElementById('connectBtn').innerText = "Connecting...";
+            document.getElementById('connectBtn').disabled = true;
+        };
+
+        // Terminal Interaction
+        term.onData(data => {
+            if (socket.connected) {
+                socket.emit('ssh_input', { data });
+            }
+        });
+
+        socket.on('ssh_output', data => {
+            // If we get output, we assume success or show error
+            if (data.data.includes('[ERROR]')) {
+                errorEl.innerText = data.data.replace('[ERROR]', '').trim();
+                errorEl.style.display = 'block';
+                document.getElementById('connectBtn').innerText = "Connect to WSL";
+                document.getElementById('connectBtn').disabled = false;
+            } else {
+                // Successful session started
+                if (document.getElementById('controls').style.display !== 'none') {
+                    document.getElementById('controls').style.display = 'none';
+                    resize();
+                    // Crucial: Focus terminal after the control panel is hidden
+                    setTimeout(() => term.focus(), 100);
+                }
+                term.write(data.data);
+            }
+        });
+
+        // Initial resize
+        setTimeout(resize, 500);
+    </script>
+</body>
+</html>
