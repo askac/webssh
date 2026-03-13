@@ -1,0 +1,25 @@
+# Virtual Environments
+tools/
+.venv/
+.venv_wsl/
+venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Flag Files
+.installed
+
+# Environment Variables
+.env
+.flaskenv
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Flask/Socket.IO
+*.log

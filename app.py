@@ -29,10 +29,10 @@ class SSHBridge:
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.channel = None
 
-    def connect(self, user, password=None):
+    def connect(self, host, port, user, password=None):
         try:
-            print(f"[*] Attempting SSH connection for {user} at {SSH_HOST}:{SSH_PORT}...")
-            self.ssh.connect(SSH_HOST, port=SSH_PORT, username=user, password=password, timeout=10)
+            print(f"[*] Attempting SSH connection for {user} at {host}:{port}...")
+            self.ssh.connect(host, port=int(port), username=user, password=password, timeout=10)
             self.channel = self.ssh.invoke_shell(term='xterm', width=80, height=24)
             self.channel.setblocking(0)
             print(f"[+] SSH connection established for {self.sid}")
@@ -109,11 +109,13 @@ def on_connect():
 
 @socketio.on('start_ssh')
 def on_start_ssh(data):
+    host = data.get('host', '127.0.0.1')
+    port = data.get('port', 22)
     user = data.get('username', SSH_USER)
     password = data.get('password')
     
     bridge = SSHBridge(request.sid)
-    success, err = bridge.connect(user, password)
+    success, err = bridge.connect(host, port, user, password)
     if success:
         bridges[request.sid] = bridge
         socketio.start_background_task(target=bridge.read_from_ssh)
