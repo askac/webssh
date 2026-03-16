@@ -28,18 +28,21 @@
             min-width: 200px;
             min-height: 150px;
         }
-        /* Resize Handle */
-        #overlay-resizer {
-            width: 15px;
-            height: 15px;
-            background: #0a84ff;
+        /* Resizer Handles */
+        .resizer {
             position: absolute;
-            right: 0;
-            bottom: 0;
-            cursor: nwse-resize;
             z-index: 2002;
-            clip-path: polygon(100% 0, 100% 100%, 0 100%);
+            background: transparent;
         }
+        .resizer.n { top: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
+        .resizer.s { bottom: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
+        .resizer.e { top: 0; right: 0; bottom: 0; width: 5px; cursor: ew-resize; }
+        .resizer.w { top: 0; left: 0; bottom: 0; width: 5px; cursor: ew-resize; }
+        .resizer.nw { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+        .resizer.ne { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+        .resizer.sw { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+        .resizer.se { bottom: 0; right: 0; width: 15px; height: 15px; cursor: nwse-resize; background: #0a84ff; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+
         /* Shield to prevent iframe stealing mouse events */
         #overlay-shield {
             display: none;
@@ -158,7 +161,15 @@
             <iframe id="overlay-iframe" style="width: 100%; height: 100%; border: none; display: none;" src="about:blank"></iframe>
             <img id="overlay-img" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;" />
         </div>
-        <div id="overlay-resizer"></div>
+        <!-- Resizers -->
+        <div class="resizer n"></div>
+        <div class="resizer s"></div>
+        <div class="resizer e"></div>
+        <div class="resizer w"></div>
+        <div class="resizer nw"></div>
+        <div class="resizer ne"></div>
+        <div class="resizer sw"></div>
+        <div class="resizer se"></div>
     </div>
 
     <div id="controls">
@@ -339,47 +350,77 @@
 
         // Draggable & Resizable Logic
         const header = document.getElementById('overlay-header');
-        const resizer = document.getElementById('overlay-resizer');
         const shield = document.getElementById('overlay-shield');
         let isDragging = false;
         let isResizing = false;
+        let currentResizer = null;
         let startX, startY, startWidth, startHeight, startLeft, startTop;
 
+        // Header dragging
         header.onmousedown = (e) => {
+            if (e.target.closest('.header-btn')) return; // Don't drag if clicking buttons
             isDragging = true;
-            shield.style.display = 'block'; // Block iframe events
+            shield.style.display = 'block';
             startX = e.clientX;
             startY = e.clientY;
             startLeft = urlOverlay.offsetLeft;
             startTop = urlOverlay.offsetTop;
-            urlOverlay.style.right = 'auto'; // Switch to absolute positioning
+            urlOverlay.style.right = 'auto';
         };
 
-        resizer.onmousedown = (e) => {
-            isResizing = true;
-            shield.style.display = 'block'; // Block iframe events
-            startX = e.clientX;
-            startY = e.clientY;
-            startWidth = urlOverlay.clientWidth;
-            startHeight = urlOverlay.clientHeight;
-            e.preventDefault();
-        };
+        // Multi-directional Resizing
+        document.querySelectorAll('.resizer').forEach(resizer => {
+            resizer.onmousedown = (e) => {
+                isResizing = true;
+                currentResizer = e.target;
+                shield.style.display = 'block';
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = urlOverlay.clientWidth;
+                startHeight = urlOverlay.clientHeight;
+                startLeft = urlOverlay.offsetLeft;
+                startTop = urlOverlay.offsetTop;
+                urlOverlay.style.right = 'auto';
+                e.preventDefault();
+            };
+        });
 
         window.onmousemove = (e) => {
             if (isDragging) {
                 urlOverlay.style.left = `${startLeft + (e.clientX - startX)}px`;
                 urlOverlay.style.top = `${startTop + (e.clientY - startY)}px`;
-            } else if (isResizing) {
-                urlOverlay.style.width = `${startWidth + (e.clientX - startX)}px`;
-                urlOverlay.style.height = `${startHeight + (e.clientY - startY)}px`;
+            } else if (isResizing && currentResizer) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                const classes = currentResizer.className;
+
+                if (classes.includes('e')) {
+                    urlOverlay.style.width = `${startWidth + dx}px`;
+                }
+                if (classes.includes('w')) {
+                    urlOverlay.style.width = `${startWidth - dx}px`;
+                    urlOverlay.style.left = `${startLeft + dx}px`;
+                }
+                if (classes.includes('s')) {
+                    urlOverlay.style.height = `${startHeight + dy}px`;
+                }
+                if (classes.includes('n')) {
+                    urlOverlay.style.height = `${startHeight - dy}px`;
+                    urlOverlay.style.top = `${startTop + dy}px`;
+                }
             }
         };
 
         window.onmouseup = () => { 
             isDragging = false; 
             isResizing = false; 
+            currentResizer = null;
             shield.style.display = 'none'; 
         };
+
+        // Fix button interactions by stopping propagation
+        document.getElementById('close-overlay').addEventListener('mousedown', (e) => e.stopPropagation());
+        document.getElementById('external-link').addEventListener('mousedown', (e) => e.stopPropagation());
 
         // Terminal PiP
         document.getElementById('pip-option').addEventListener('click', async () => {
