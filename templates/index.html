@@ -23,9 +23,30 @@
             border: 3px solid #0a84ff;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,1);
-            resize: both;
             overflow: hidden;
             flex-direction: column;
+            min-width: 200px;
+            min-height: 150px;
+        }
+        /* Resize Handle */
+        #overlay-resizer {
+            width: 15px;
+            height: 15px;
+            background: #0a84ff;
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            cursor: nwse-resize;
+            z-index: 2002;
+            clip-path: polygon(100% 0, 100% 100%, 0 100%);
+        }
+        /* Shield to prevent iframe stealing mouse events */
+        #overlay-shield {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 2001;
+            background: transparent;
         }
         #overlay-header {
             background: #222;
@@ -38,6 +59,11 @@
             font-size: 12px;
             user-select: none;
         }
+        #header-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
         #overlay-iframe {
             flex-grow: 1;
             border: none;
@@ -45,15 +71,19 @@
             height: calc(100% - 35px);
             background: white;
         }
-        #close-overlay {
-            background: #ff453a;
+        .header-btn {
+            background: #444;
             color: white;
             border: none;
             border-radius: 4px;
             padding: 2px 8px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 11px;
         }
+        .header-btn:hover { background: #666; }
+        #close-overlay { background: #ff453a; }
+        #close-overlay:hover { background: #ff6b61; }
 
         /* Custom Context Menu */
         #context-menu {
@@ -116,14 +146,19 @@
     </div>
     
     <div id="url-overlay">
+        <div id="overlay-shield"></div>
         <div id="overlay-header">
             <span id="overlay-title">Side Browser</span>
-            <button id="close-overlay">×</button>
+            <div id="header-right">
+                <button id="external-link" class="header-btn" title="Open in New Tab">↗</button>
+                <button id="close-overlay" class="header-btn" title="Close Overlay">×</button>
+            </div>
         </div>
         <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; position: relative;">
             <iframe id="overlay-iframe" style="width: 100%; height: 100%; border: none; display: none;" src="about:blank"></iframe>
             <img id="overlay-img" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;" />
         </div>
+        <div id="overlay-resizer"></div>
     </div>
 
     <div id="controls">
@@ -267,6 +302,9 @@
             let url = openOption.dataset.url;
             if (!url.startsWith('http')) url = 'https://' + url;
             
+            // Set up external link fallback
+            document.getElementById('external-link').onclick = () => window.open(url, '_blank');
+            
             // Check if it's an image
             const isImage = IMAGE_EXTENSIONS.some(ext => url.toLowerCase().includes(ext));
             
@@ -299,23 +337,49 @@
             }
         });
 
-        // Draggable Logic
+        // Draggable & Resizable Logic
         const header = document.getElementById('overlay-header');
+        const resizer = document.getElementById('overlay-resizer');
+        const shield = document.getElementById('overlay-shield');
         let isDragging = false;
-        let offset = { x: 0, y: 0 };
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight, startLeft, startTop;
+
         header.onmousedown = (e) => {
             isDragging = true;
-            offset.x = e.clientX - urlOverlay.offsetLeft;
-            offset.y = e.clientY - urlOverlay.offsetTop;
+            shield.style.display = 'block'; // Block iframe events
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = urlOverlay.offsetLeft;
+            startTop = urlOverlay.offsetTop;
+            urlOverlay.style.right = 'auto'; // Switch to absolute positioning
         };
+
+        resizer.onmousedown = (e) => {
+            isResizing = true;
+            shield.style.display = 'block'; // Block iframe events
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = urlOverlay.clientWidth;
+            startHeight = urlOverlay.clientHeight;
+            e.preventDefault();
+        };
+
         window.onmousemove = (e) => {
             if (isDragging) {
-                urlOverlay.style.left = `${e.clientX - offset.x}px`;
-                urlOverlay.style.top = `${e.clientY - offset.y}px`;
-                urlOverlay.style.right = 'auto';
+                urlOverlay.style.left = `${startLeft + (e.clientX - startX)}px`;
+                urlOverlay.style.top = `${startTop + (e.clientY - startY)}px`;
+            } else if (isResizing) {
+                urlOverlay.style.width = `${startWidth + (e.clientX - startX)}px`;
+                urlOverlay.style.height = `${startHeight + (e.clientY - startY)}px`;
             }
         };
-        window.onmouseup = () => { isDragging = false; };
+
+        window.onmouseup = () => { 
+            isDragging = false; 
+            isResizing = false; 
+            shield.style.display = 'none'; 
+        };
 
         // Terminal PiP
         document.getElementById('pip-option').addEventListener('click', async () => {

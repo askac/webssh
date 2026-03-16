@@ -2,6 +2,8 @@
 
 A lightweight, web-based SSH terminal with advanced features, designed to run on both **WSL2** and **Native Windows**.
 
+![WebSSH Demo](webssh_demo.gif)
+
 ## Features
 
 - **Cross-Platform**:
