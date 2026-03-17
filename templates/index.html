@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/static/css/xterm.css" onerror="this.href='https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css'" />
     <script src="/static/js/xterm.js" onerror="this.src='https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js'"></script>
     <script src="/static/js/socket.io.min.js" onerror="this.src='https://cdn.socket.io/4.5.4/socket.io.min.js'"></script>
+    <script src="/static/js/xterm-addon-fit.js" onerror="this.src='https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js'"></script>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         #terminal { height: calc(100vh - 20px); width: 100vw; background: #000; z-index: 1; }
@@ -160,6 +161,12 @@
         <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; position: relative;">
             <iframe id="overlay-iframe" style="width: 100%; height: 100%; border: none; display: none;" src="about:blank"></iframe>
             <img id="overlay-img" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;" />
+            <div id="overlay-fallback" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:#1a1a1a; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; text-align:center; color:#ddd;">
+                <div style="font-size:36px;">&#x26A0;</div>
+                <div style="font-size:14px; color:#aaa;">This site refused to connect, or blocked iframe embedding.</div>
+                <div id="overlay-fallback-url" style="font-size:11px; color:#555; word-break:break-all; max-width:90%;"></div>
+                <button id="overlay-fallback-open" style="background:#0a84ff; color:white; border:none; border-radius:6px; padding:10px 24px; cursor:pointer; font-size:13px; font-weight:bold;">Open in New Tab &#x2197;</button>
+            </div>
         </div>
         <!-- Resizers -->
         <div class="resizer n"></div>
@@ -198,6 +205,8 @@
             fontFamily: 'Consolas, "Courier New", monospace',
             fontSize: 14
         });
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
         term.open(terminalContainer);
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -221,16 +230,9 @@
         });
 
         function resize() {
-            if (!terminalContainer) return;
-            const width = terminalContainer.clientWidth;
-            const height = terminalContainer.clientHeight;
-            const cols = Math.floor(width / 9); 
-            const rows = Math.floor(height / 18);
-            if (cols > 0 && rows > 0) {
-                term.resize(cols, rows);
-                if (socket.connected) {
-                    socket.emit('resize', { cols, rows });
-                }
+            fitAddon.fit();
+            if (socket.connected) {
+                socket.emit('resize', { cols: term.cols, rows: term.rows });
             }
         }
         window.addEventListener('resize', resize);
@@ -308,35 +310,68 @@
             contextMenu.style.display = 'none';
         });
 
+        const overlayFallback = document.getElementById('overlay-fallback');
+        const overlayFallbackUrl = document.getElementById('overlay-fallback-url');
+        const overlayFallbackOpen = document.getElementById('overlay-fallback-open');
+        let iframeLoadTimer = null;
+
+        function showOverlayFallback(url) {
+            overlayIframe.style.display = 'none';
+            overlayImg.style.display = 'none';
+            overlayFallbackUrl.innerText = url;
+            overlayFallbackOpen.onclick = () => window.open(url, '_blank');
+            overlayFallback.style.display = 'flex';
+        }
+
+        function loadUrlInOverlay(url) {
+            overlayFallback.style.display = 'none';
+            overlayImg.style.display = 'none';
+            overlayIframe.style.display = 'block';
+            overlayIframe.src = url;
+
+            if (iframeLoadTimer) clearTimeout(iframeLoadTimer);
+            iframeLoadTimer = setTimeout(() => showOverlayFallback(url), 10000);
+
+            overlayIframe.onload = () => {
+                clearTimeout(iframeLoadTimer);
+                try {
+                    const href = overlayIframe.contentWindow.location.href;
+                    if (!href || href === 'about:blank') showOverlayFallback(url);
+                } catch (e) {
+                    // Cross-origin but loaded OK
+                }
+            };
+        }
+
         openOption.addEventListener('click', () => {
             if (openOption.classList.contains('disabled')) return;
             let url = openOption.dataset.url;
             if (!url.startsWith('http')) url = 'https://' + url;
-            
-            // Set up external link fallback
+
             document.getElementById('external-link').onclick = () => window.open(url, '_blank');
-            
-            // Check if it's an image
+
             const isImage = IMAGE_EXTENSIONS.some(ext => url.toLowerCase().includes(ext));
-            
+
             if (isImage) {
+                overlayFallback.style.display = 'none';
                 overlayIframe.style.display = 'none';
                 overlayImg.src = url;
                 overlayImg.style.display = 'block';
             } else {
-                overlayImg.style.display = 'none';
-                overlayIframe.src = url;
-                overlayIframe.style.display = 'block';
+                loadUrlInOverlay(url);
             }
             urlOverlay.style.display = 'flex';
         });
 
         document.getElementById('close-overlay').onclick = () => {
+            if (iframeLoadTimer) clearTimeout(iframeLoadTimer);
             urlOverlay.style.display = 'none';
             overlayIframe.src = 'about:blank';
+            overlayIframe.onload = null;
             overlayImg.src = '';
             overlayIframe.style.display = 'none';
             overlayImg.style.display = 'none';
+            overlayFallback.style.display = 'none';
             // Restore focus to terminal after closing overlay
             setTimeout(() => term.focus(), 100);
         };
@@ -437,7 +472,7 @@
                     pipWindow.document.head.appendChild(l);
                 }
             });
-            const r = () => { term.resize(Math.floor(pipWindow.innerWidth / 9), Math.floor(pipWindow.innerHeight / 18)); };
+            const r = () => { fitAddon.fit(); };
             pipWindow.addEventListener('resize', r);
             pipWindow.addEventListener("pagehide", () => {
                 document.body.insertBefore(terminalContainer, document.getElementById('status-bar'));
