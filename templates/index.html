@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>WebSSH</title>
-    <!-- Local Fallback Assets -->
+    <!-- Local Fallback CSS -->
     <link rel="stylesheet" href="/static/css/xterm.css" onerror="this.href='https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css'" />
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -199,7 +199,7 @@
     <script>
         // --- Preferences ---
         const PREF_KEY = 'webssh.pref.v1';
-        const PREF_DEFAULTS = { copyOnSelect: false, enablePicPreview: true, detectUrls: true, urlClickAction: 'overlay', fontFace: 'Consolas, monospace', fontSize: 14 };
+        const PREF_DEFAULTS = { copyOnSelect: false, enablePicPreview: true, detectUrls: true, urlClickAction: 'overlay', fontFace: 'Consolas, "Courier New", monospace', fontSize: 14 };
         let prefs = { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREF_KEY) || '{}') };
         function savePrefs(p) { localStorage.setItem(PREF_KEY, JSON.stringify(p)); }
 
@@ -307,9 +307,6 @@
             // UI Elements
             const contextMenu = document.getElementById('context-menu');
             const urlOverlay = document.getElementById('url-overlay');
-            const overlayIframe = document.getElementById('overlay-iframe');
-            const overlayImg = document.getElementById('overlay-img');
-            const overlayFallback = document.getElementById('overlay-fallback');
             const openOption = document.getElementById('open-overlay-option');
             const searchOption = document.getElementById('search-google-option');
             const menuSepSel = document.getElementById('menu-sep-sel');
@@ -331,12 +328,12 @@
                 overlayFallback.style.display = 'none';
                 const isImg = IMAGE_EXTENSIONS.some(ext => url.toLowerCase().includes(ext));
                 if (isImg && !prefs.enablePicPreview) { window.open(url, '_blank'); return; }
-                overlayIframe.style.display = isImg ? 'none' : 'block';
-                overlayImg.style.display = isImg ? 'block' : 'none';
-                if (isImg) overlayImg.src = url; else {
-                    overlayIframe.src = url;
-                    let timer = setTimeout(() => { overlayIframe.style.display = 'none'; overlayFallback.style.display = 'flex'; document.getElementById('overlay-fallback-url').innerText = url; document.getElementById('overlay-fallback-open').onclick = () => window.open(url, '_blank'); }, 8000);
-                    overlayIframe.onload = () => clearTimeout(timer);
+                document.getElementById('overlay-iframe').style.display = isImg ? 'none' : 'block';
+                document.getElementById('overlay-img').style.display = isImg ? 'block' : 'none';
+                if (isImg) document.getElementById('overlay-img').src = url; else {
+                    document.getElementById('overlay-iframe').src = url;
+                    let timer = setTimeout(() => { document.getElementById('overlay-iframe').style.display = 'none'; document.getElementById('overlay-fallback').style.display = 'flex'; document.getElementById('overlay-fallback-url').innerText = url; document.getElementById('overlay-fallback-open').onclick = () => window.open(url, '_blank'); }, 8000);
+                    document.getElementById('overlay-iframe').onload = () => clearTimeout(timer);
                 }
                 urlOverlay.style.display = 'flex';
             }
@@ -344,7 +341,7 @@
             openOption.onclick = () => openUrlInOverlay(openOption.dataset.url);
             searchOption.onclick = () => window.open(`https://www.google.com/search?q=${encodeURIComponent(searchOption.dataset.query)}`, '_blank');
             document.getElementById('paste-option').onclick = async () => { try { const t = await navigator.clipboard.readText(); socket.emit('ssh_input', { data: t }); } catch(e){} };
-            document.getElementById('close-overlay').onclick = (e) => { e.stopPropagation(); urlOverlay.style.display = 'none'; overlayIframe.src = 'about:blank'; setTimeout(() => term.focus(), 100); };
+            document.getElementById('close-overlay').onclick = (e) => { e.stopPropagation(); urlOverlay.style.display = 'none'; document.getElementById('overlay-iframe').src = 'about:blank'; setTimeout(() => term.focus(), 100); };
             
             // Drag & Resize
             const header = document.getElementById('overlay-header');
@@ -384,7 +381,8 @@
                 pipWindow.addEventListener("pagehide", () => { document.body.insertBefore(terminalContainer, document.getElementById('status-bar')); resize(); });
             });
 
-            // Settings Modal
+            // Settings Modal logic (FIXED: Load values on open)
+            const settingsModal = document.getElementById('settings-modal');
             document.getElementById('settings-option').onclick = () => {
                 document.getElementById('pref-copyOnSelect').checked = prefs.copyOnSelect;
                 document.getElementById('pref-enablePicPreview').checked = prefs.enablePicPreview;
@@ -392,9 +390,19 @@
                 document.getElementById('pref-urlClickAction').value = prefs.urlClickAction;
                 document.getElementById('pref-fontFace').value = prefs.fontFace;
                 document.getElementById('pref-fontSize').value = prefs.fontSize;
-                document.getElementById('settings-modal').classList.add('open');
+                settingsModal.classList.add('open');
             };
-            document.getElementById('settings-close').onclick = () => document.getElementById('settings-modal').classList.remove('open');
+            document.getElementById('settings-close').onclick = () => settingsModal.classList.remove('open');
+            
+            document.querySelectorAll('.settings-nav-item').forEach(item => {
+                item.onclick = () => {
+                    document.querySelectorAll('.settings-nav-item').forEach(i => i.classList.remove('active'));
+                    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+                    item.classList.add('active');
+                    document.getElementById('tab-' + item.dataset.tab).classList.add('active');
+                };
+            });
+
             document.getElementById('settings-save').onclick = () => {
                 prefs.copyOnSelect = document.getElementById('pref-copyOnSelect').checked;
                 prefs.enablePicPreview = document.getElementById('pref-enablePicPreview').checked;
@@ -406,7 +414,7 @@
                 term.options.fontFamily = prefs.fontFace;
                 term.options.fontSize = prefs.fontSize;
                 resize(); applyDetectUrls();
-                document.getElementById('settings-modal').classList.remove('open');
+                settingsModal.classList.remove('open');
             };
             document.getElementById('settings-reset').onclick = () => {
                 prefs = { ...PREF_DEFAULTS }; savePrefs(prefs);
