@@ -46,6 +46,7 @@
         .header-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-weight: bold; font-size: 11px; }
         .header-btn:hover { background: #666; }
         #close-overlay { background: #ff453a; }
+        #close-overlay:hover { background: #ff6b61; }
 
         /* Context Menu */
         #context-menu {
@@ -70,32 +71,39 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.9); color: #ddd; font-size: 13px; overflow: hidden;
         }
         .settings-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #3a3a3c; }
-        .settings-header h3 { margin: 0; color: #0a84ff; font-size: 1rem; }
+        .settings-header h3 { margin: 0; color: #0a84ff; font-size: 1rem; font-weight: 600; }
         .settings-body { display: flex; flex: 1; overflow: hidden; }
-        .settings-nav { width: 120px; border-right: 1px solid #3a3a3c; padding: 8px 0; }
-        .settings-nav-item { padding: 9px 16px; cursor: pointer; color: #888; }
+        .settings-nav { width: 120px; border-right: 1px solid #3a3a3c; padding: 8px 0; flex-shrink: 0; }
+        .settings-nav-item { padding: 9px 16px; cursor: pointer; color: #888; font-size: 13px; }
         .settings-nav-item:hover { color: #fff; background: #2c2c2e; }
-        .settings-nav-item.active { color: #0a84ff; background: #2c2c2e; }
+        .settings-nav-item.active { color: #0a84ff; background: #2c2c2e; font-weight: 500; }
         .settings-content { flex: 1; padding: 16px 20px; overflow-y: auto; }
         .settings-tab { display: none; }
         .settings-tab.active { display: block; }
         .settings-fieldset { border: 1px solid #3a3a3c; border-radius: 6px; padding: 10px 16px; margin-bottom: 14px; }
-        .settings-fieldset legend { color: #666; font-size: 10px; text-transform: uppercase; padding: 0 6px; }
+        .settings-fieldset legend { color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; padding: 0 6px; }
         .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #2c2c2e; }
         .settings-row:last-child { border-bottom: none; }
-        .settings-row label { flex: 1; cursor: pointer; }
-        .settings-row input, .settings-row select { background: #2c2c2e; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-        .settings-footer { display: flex; justify-content: space-between; padding: 12px 20px; border-top: 1px solid #3a3a3c; }
+        .settings-row label { color: #ddd; cursor: pointer; flex: 1; }
+        .settings-row input[type="text"], .settings-row input[type="number"], .settings-row select { background: #2c2c2e; border: 1px solid #555; color: #fff; border-radius: 4px; padding: 4px 8px; font-size: 12px; outline: none; }
+        .settings-row input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #0a84ff; }
+        .settings-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid #3a3a3c; }
+        .settings-btn { padding: 7px 18px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 500; }
+        #settings-reset { background: #3a3a3c; color: #aaa; }
+        #settings-reset:hover { background: #48484a; color: #fff; }
+        #settings-save { background: #0a84ff; color: white; }
+        #settings-save:hover { background: #007aff; }
 
         /* Controls */
         #controls { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: #222; padding: 30px; border-radius: 8px; color: white; border: 1px solid #444; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 300px; }
         #controls h2 { margin-top: 0; color: #0a84ff; font-size: 1.2rem; }
         #controls input { display: block; width: 100%; margin-bottom: 15px; padding: 10px; background: #333; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
         #controls button { width: 100%; padding: 12px; background: #0a84ff; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        #controls button:hover { background: #007aff; }
         
         /* Status Bar */
         #status-bar { position: absolute; bottom: 0; left: 0; right: 0; background: #111; color: #888; font-size: 12px; padding: 2px 10px; z-index: 50; border-top: 1px solid #222; display: flex; align-items: center; }
-        .sb-sep { margin: 0 8px; color: #444; }
+        .sb-sep { margin: 0 8px; color: #444; user-select: none; }
         .error-msg { color: #ff453a; font-size: 13px; margin-bottom: 10px; display: none; }
     </style>
 </head>
@@ -108,13 +116,13 @@
     </div>
 
     <div id="context-menu">
-        <div class="menu-item" id="paste-option">📋 Paste</div>
+        <div class="menu-item" id="paste-option">&#x1F4CB; Paste</div>
         <div class="menu-separator"></div>
-        <div class="menu-item hidden" id="open-overlay-option">🔗 Open in Overlay</div>
-        <div class="menu-item hidden" id="search-google-option">🔍 Search Google</div>
+        <div class="menu-item hidden" id="open-overlay-option">&#x1F517; Open in Overlay</div>
+        <div class="menu-item hidden" id="search-google-option">&#x1F50D; Search Google</div>
         <div class="menu-separator" id="menu-sep-sel" style="display:none"></div>
-        <div class="menu-item" id="pip-option">🗔 Terminal to PiP</div>
-        <div class="menu-item" id="settings-option">⚙️ Settings</div>
+        <div class="menu-item" id="pip-option">&#x29C9; Terminal to PiP</div>
+        <div class="menu-item" id="settings-option">&#x2699;&#xFE0F; Settings</div>
     </div>
 
     <div id="url-overlay">
@@ -122,27 +130,30 @@
         <div id="overlay-header">
             <span id="overlay-title">Side Browser</span>
             <div id="header-right">
-                <button id="external-link" class="header-btn" title="Open in New Tab">↗</button>
-                <button id="close-overlay" class="header-btn" title="Close Overlay">×</button>
+                <button id="external-link" class="header-btn" title="Open in New Tab">&#x2197;</button>
+                <button id="close-overlay" class="header-btn" title="Close Overlay">&times;</button>
             </div>
         </div>
         <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #333; overflow: hidden; position: relative;">
             <iframe id="overlay-iframe" style="width: 100%; height: 100%; border: none; display: none;" src="about:blank"></iframe>
             <img id="overlay-img" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;" />
             <div id="overlay-fallback" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:#1a1a1a; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; text-align:center; color:#ddd;">
-                <div style="font-size:36px;">⚠</div>
+                <div style="font-size:36px;">&#x26A0;</div>
                 <div style="font-size:14px; color:#aaa;">Site blocked embedding or refused to connect.</div>
                 <div id="overlay-fallback-url" style="font-size:11px; color:#555; word-break:break-all; max-width:90%;"></div>
-                <button id="overlay-fallback-open" style="background:#0a84ff; color:white; border:none; border-radius:6px; padding:10px 24px; cursor:pointer; font-size:13px; font-weight:bold;">Open in New Tab ↗</button>
+                <button id="overlay-fallback-open" style="background:#0a84ff; color:white; border:none; border-radius:6px; padding:10px 24px; cursor:pointer; font-size:13px; font-weight:bold;">Open in New Tab &#x2197;</button>
             </div>
         </div>
-        <div class="resizer n"></div><div class="resizer s"></div><div class="resizer e"></div><div class="resizer w"></div>
-        <div class="resizer nw"></div><div class="resizer ne"></div><div class="resizer sw"></div><div class="resizer se"></div>
+        <!-- Resizers -->
+        <div class="resizer n"></div><div class="resizer s"></div>
+        <div class="resizer e"></div><div class="resizer w"></div>
+        <div class="resizer nw"></div><div class="resizer ne"></div>
+        <div class="resizer sw"></div><div class="resizer se"></div>
     </div>
 
     <div id="settings-modal">
         <div class="settings-box">
-            <div class="settings-header"><h3>Settings</h3><button class="header-btn" id="settings-close" style="background:#ff453a;">×</button></div>
+            <div class="settings-header"><h3>Settings</h3><button class="header-btn" id="settings-close" style="background:#ff453a;">&times;</button></div>
             <div class="settings-body">
                 <div class="settings-nav">
                     <div class="settings-nav-item active" data-tab="general">General</div>
@@ -153,7 +164,7 @@
                         <fieldset class="settings-fieldset">
                             <legend>General</legend>
                             <div class="settings-row"><label for="pref-copyOnSelect">Copy on select</label><input type="checkbox" id="pref-copyOnSelect"></div>
-                            <div class="settings-row"><label for="pref-enablePicPreview">Enable pic preview</label><input type="checkbox" id="pref-enablePicPreview"></div>
+                            <div class="settings-row"><label for="pref-enablePicPreview">Enable pic preview in overlay</label><input type="checkbox" id="pref-enablePicPreview"></div>
                             <div class="settings-row"><label for="pref-detectUrls">Detect & linkify URLs</label><input type="checkbox" id="pref-detectUrls"></div>
                             <div class="settings-row"><label for="pref-urlClickAction">URL click opens in</label>
                                 <select id="pref-urlClickAction"><option value="overlay">Overlay</option><option value="newtab">New Tab</option></select>
@@ -170,8 +181,8 @@
                 </div>
             </div>
             <div class="settings-footer">
-                <button class="header-btn" id="settings-reset" style="background:#3a3a3c;">Reset</button>
-                <button class="header-btn" id="settings-save" style="background:#0a84ff;">Save Changes</button>
+                <button class="settings-btn" id="settings-reset">Reset</button>
+                <button class="settings-btn" id="settings-save">Save</button>
             </div>
         </div>
     </div>
@@ -193,17 +204,18 @@
         <span>SSH:&nbsp;<span id="socketStatus">Disconnected</span></span>
         <span class="sb-sep">|</span>
         <span id="clock-display"></span>
-        <span id="uptime-section" style="display:none"><span class="sb-sep">|</span>Connected:&nbsp;<span id="uptime-display"></span></span>
+        <span id="uptime-section" style="display:none"><span class="sb-sep">|</span>connected:&nbsp;<span id="uptime-display"></span></span>
     </div>
 
     <script>
-        // --- Preferences ---
+        // --- Preferences Implementation (Mirroring d0fac9fd) ---
         const PREF_KEY = 'webssh.pref.v1';
         const PREF_DEFAULTS = { copyOnSelect: false, enablePicPreview: true, detectUrls: true, urlClickAction: 'overlay', fontFace: 'Consolas, "Courier New", monospace', fontSize: 14 };
-        let prefs = { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREF_KEY) || '{}') };
+        function loadPrefs() { try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREF_KEY)) }; } catch (e) { return { ...PREF_DEFAULTS }; } }
         function savePrefs(p) { localStorage.setItem(PREF_KEY, JSON.stringify(p)); }
+        let prefs = loadPrefs();
 
-        // --- Loader Logic ---
+        // --- Loader Logic (Async/Wait) ---
         let startTime = Date.now();
         let scriptsLoaded = 0;
         const totalScripts = 4;
@@ -246,14 +258,17 @@
             const errorEl = document.getElementById('errorBox');
             let connectedAt = null;
 
-            // Clock & Uptime
+            // Clock & Uptime logic
+            function formatUptime(secs) {
+                const d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+                const hms = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                return d > 0 ? `${d}d ${hms}` : hms;
+            }
             setInterval(() => {
                 const now = new Date();
                 document.getElementById('clock-display').innerText = now.toLocaleString();
                 if (connectedAt) {
-                    const s = Math.floor((now - connectedAt) / 1000);
-                    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
-                    document.getElementById('uptime-display').innerText = `${h}h ${m}m ${sec}s`;
+                    document.getElementById('uptime-display').innerText = formatUptime(Math.floor((now - connectedAt) / 1000));
                 }
             }, 1000);
 
@@ -262,7 +277,7 @@
             if (fitAddon) term.loadAddon(fitAddon);
             term.open(terminalContainer);
 
-            // Web Links Addon
+            // Web Links logic
             let webLinksAddon = null;
             function applyDetectUrls() {
                 if (webLinksAddon) { webLinksAddon.dispose(); webLinksAddon = null; }
@@ -280,7 +295,7 @@
 
             const socket = io({ query: { token: (new URLSearchParams(window.location.search)).get('token') || "{{ token }}" }, reconnectionAttempts: 5 });
             socket.on('connect', () => { statusEl.innerText = "Connected"; statusEl.style.color = "#34c759"; });
-            socket.on('disconnect', () => { statusEl.innerText = "Disconnected"; statusEl.style.color = "#ff9f0a"; document.getElementById('controls').style.display = 'block'; connectedAt = null; document.getElementById('uptime-section').style.display = 'none'; });
+            socket.on('disconnect', (r) => { statusEl.innerText = "Disconnected (" + r + ")"; statusEl.style.color = "#ff9f0a"; document.getElementById('controls').style.display = 'block'; connectedAt = null; document.getElementById('uptime-section').style.display = 'none'; });
 
             function resize() { if (fitAddon) fitAddon.fit(); if (socket.connected) socket.emit('resize', { cols: term.cols, rows: term.rows }); }
             window.addEventListener('resize', resize);
@@ -304,22 +319,25 @@
                 }
             });
 
-            // UI Elements
+            // UI Elements & Overlay logic
             const contextMenu = document.getElementById('context-menu');
             const urlOverlay = document.getElementById('url-overlay');
+            const overlayIframe = document.getElementById('overlay-iframe');
+            const overlayImg = document.getElementById('overlay-img');
+            const overlayFallback = document.getElementById('overlay-fallback');
             const openOption = document.getElementById('open-overlay-option');
             const searchOption = document.getElementById('search-google-option');
             const menuSepSel = document.getElementById('menu-sep-sel');
             const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'];
 
-            window.addEventListener('contextmenu', (e) => {
-                if (e.shiftKey) return; e.preventDefault();
-                const sel = term.getSelection().trim();
-                openOption.classList.toggle('hidden', !sel); searchOption.classList.toggle('hidden', !sel); menuSepSel.style.display = sel ? 'block' : 'none';
-                if (sel) { openOption.dataset.url = sel; searchOption.dataset.query = sel; }
-                contextMenu.style.left = `${e.clientX}px`; contextMenu.style.top = `${e.clientY}px`; contextMenu.style.display = 'block';
-            });
-
+            function showContextMenu(x, y) {
+                const sel = term.getSelection().trim(); const hasSel = !!sel;
+                openOption.classList.toggle('hidden', !hasSel); searchOption.classList.toggle('hidden', !hasSel); menuSepSel.style.display = hasSel ? 'block' : 'none';
+                if (hasSel) { openOption.dataset.url = sel; searchOption.dataset.query = sel; }
+                contextMenu.style.left = `${x}px`; contextMenu.style.top = `${y}px`; contextMenu.style.display = 'block';
+                requestAnimationFrame(() => { const r = contextMenu.getBoundingClientRect(); if (r.right > window.innerWidth) contextMenu.style.left = `${x - r.width}px`; if (r.bottom > window.innerHeight) contextMenu.style.top = `${y - r.height}px`; });
+            }
+            window.addEventListener('contextmenu', (e) => { if (e.shiftKey) return; e.preventDefault(); setTimeout(() => showContextMenu(e.clientX, e.clientY), 50); });
             window.addEventListener('mousedown', (e) => { if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none'; });
             
             function openUrlInOverlay(url) {
@@ -328,12 +346,12 @@
                 overlayFallback.style.display = 'none';
                 const isImg = IMAGE_EXTENSIONS.some(ext => url.toLowerCase().includes(ext));
                 if (isImg && !prefs.enablePicPreview) { window.open(url, '_blank'); return; }
-                document.getElementById('overlay-iframe').style.display = isImg ? 'none' : 'block';
-                document.getElementById('overlay-img').style.display = isImg ? 'block' : 'none';
-                if (isImg) document.getElementById('overlay-img').src = url; else {
-                    document.getElementById('overlay-iframe').src = url;
-                    let timer = setTimeout(() => { document.getElementById('overlay-iframe').style.display = 'none'; document.getElementById('overlay-fallback').style.display = 'flex'; document.getElementById('overlay-fallback-url').innerText = url; document.getElementById('overlay-fallback-open').onclick = () => window.open(url, '_blank'); }, 8000);
-                    document.getElementById('overlay-iframe').onload = () => clearTimeout(timer);
+                overlayIframe.style.display = isImg ? 'none' : 'block';
+                overlayImg.style.display = isImg ? 'block' : 'none';
+                if (isImg) overlayImg.src = url; else {
+                    overlayIframe.src = url;
+                    let timer = setTimeout(() => { if (overlayIframe.style.display !== 'none') { overlayIframe.style.display = 'none'; overlayFallback.style.display = 'flex'; document.getElementById('overlay-fallback-url').innerText = url; document.getElementById('overlay-fallback-open').onclick = () => window.open(url, '_blank'); } }, 8000);
+                    overlayIframe.onload = () => clearTimeout(timer);
                 }
                 urlOverlay.style.display = 'flex';
             }
@@ -341,7 +359,7 @@
             openOption.onclick = () => openUrlInOverlay(openOption.dataset.url);
             searchOption.onclick = () => window.open(`https://www.google.com/search?q=${encodeURIComponent(searchOption.dataset.query)}`, '_blank');
             document.getElementById('paste-option').onclick = async () => { try { const t = await navigator.clipboard.readText(); socket.emit('ssh_input', { data: t }); } catch(e){} };
-            document.getElementById('close-overlay').onclick = (e) => { e.stopPropagation(); urlOverlay.style.display = 'none'; document.getElementById('overlay-iframe').src = 'about:blank'; setTimeout(() => term.focus(), 100); };
+            document.getElementById('close-overlay').onclick = (e) => { e.stopPropagation(); urlOverlay.style.display = 'none'; overlayIframe.src = 'about:blank'; setTimeout(() => term.focus(), 100); };
             
             // Drag & Resize
             const header = document.getElementById('overlay-header');
@@ -371,17 +389,14 @@
                 const pipWindow = await window.documentPictureInPicture.requestWindow({ width: 800, height: 480 });
                 pipWindow.document.body.append(terminalContainer);
                 [...document.styleSheets].forEach((s) => {
-                    try {
-                        const style = document.createElement('style'); style.textContent = [...s.cssRules].map((r) => r.cssText).join(''); pipWindow.document.head.appendChild(style);
-                    } catch (e) {
-                        const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = s.href; pipWindow.document.head.appendChild(l);
-                    }
+                    try { const style = document.createElement('style'); style.textContent = [...s.cssRules].map((r) => r.cssText).join(''); pipWindow.document.head.appendChild(style); }
+                    catch (e) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = s.href; pipWindow.document.head.appendChild(l); }
                 });
                 pipWindow.addEventListener('resize', () => { if (fitAddon) fitAddon.fit(); });
                 pipWindow.addEventListener("pagehide", () => { document.body.insertBefore(terminalContainer, document.getElementById('status-bar')); resize(); });
             });
 
-            // Settings Modal logic (FIXED: Load values on open)
+            // Settings Modal
             const settingsModal = document.getElementById('settings-modal');
             document.getElementById('settings-option').onclick = () => {
                 document.getElementById('pref-copyOnSelect').checked = prefs.copyOnSelect;
@@ -393,16 +408,13 @@
                 settingsModal.classList.add('open');
             };
             document.getElementById('settings-close').onclick = () => settingsModal.classList.remove('open');
-            
             document.querySelectorAll('.settings-nav-item').forEach(item => {
                 item.onclick = () => {
                     document.querySelectorAll('.settings-nav-item').forEach(i => i.classList.remove('active'));
                     document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-                    item.classList.add('active');
-                    document.getElementById('tab-' + item.dataset.tab).classList.add('active');
+                    item.classList.add('active'); document.getElementById('tab-' + item.dataset.tab).classList.add('active');
                 };
             });
-
             document.getElementById('settings-save').onclick = () => {
                 prefs.copyOnSelect = document.getElementById('pref-copyOnSelect').checked;
                 prefs.enablePicPreview = document.getElementById('pref-enablePicPreview').checked;
@@ -411,17 +423,10 @@
                 prefs.fontFace = document.getElementById('pref-fontFace').value;
                 prefs.fontSize = parseInt(document.getElementById('pref-fontSize').value);
                 savePrefs(prefs);
-                term.options.fontFamily = prefs.fontFace;
-                term.options.fontSize = prefs.fontSize;
-                resize(); applyDetectUrls();
-                settingsModal.classList.remove('open');
-            };
-            document.getElementById('settings-reset').onclick = () => {
-                prefs = { ...PREF_DEFAULTS }; savePrefs(prefs);
-                document.getElementById('pref-fontFace').value = prefs.fontFace; document.getElementById('pref-fontSize').value = prefs.fontSize;
                 term.options.fontFamily = prefs.fontFace; term.options.fontSize = prefs.fontSize;
-                resize(); applyDetectUrls();
+                resize(); applyDetectUrls(); settingsModal.classList.remove('open');
             };
+            document.getElementById('settings-reset').onclick = () => { prefs = { ...PREF_DEFAULTS }; savePrefs(prefs); location.reload(); };
 
             setTimeout(resize, 500);
         }
