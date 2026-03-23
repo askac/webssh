@@ -1,16 +1,53 @@
 #!/bin/bash
 
-# WebSSH Startup Script
-# Ensure this runs in a WSL environment
+# WebSSH Startup Script for macOS / Linux / WSL
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="$PROJECT_DIR/tools/.venv_wsl"
 APP_FILE="$PROJECT_DIR/app.py"
 REQ_FILE="$PROJECT_DIR/requirements.txt"
+
+detect_platform() {
+    if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+        echo "WSL"
+        return
+    fi
+
+    if [[ -r /proc/version ]] && grep -qi microsoft /proc/version; then
+        echo "WSL"
+        return
+    fi
+
+    case "$(uname -s)" in
+        Darwin)
+            echo "macOS"
+            ;;
+        Linux)
+            echo "Linux"
+            ;;
+        *)
+            echo "Unknown"
+            ;;
+    esac
+}
+
+PLATFORM_NAME="$(detect_platform)"
+
+case "$PLATFORM_NAME" in
+    WSL)
+        VENV_DIR="$PROJECT_DIR/tools/.venv_wsl"
+        ;;
+    macOS)
+        VENV_DIR="$PROJECT_DIR/tools/.venv_macos"
+        ;;
+    *)
+        VENV_DIR="$PROJECT_DIR/tools/.venv_linux"
+        ;;
+esac
+
 INSTALLED_FLAG="$VENV_DIR/.installed"
 
 echo "========================================"
-echo "   WebSSH Automated Starter (WSL)"
+echo "   WebSSH Automated Starter ($PLATFORM_NAME)"
 echo "========================================"
 
 # Check for force flag
@@ -56,6 +93,9 @@ else
 fi
 
 # 4. Start the server
+if [[ "$PLATFORM_NAME" == "macOS" ]]; then
+    echo "[*] macOS note: enable Remote Login if you want to SSH into localhost."
+fi
 
 echo "[*] Starting WebSSH server..."
 python "$APP_FILE"

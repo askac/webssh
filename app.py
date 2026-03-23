@@ -1,26 +1,37 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
-import threading
+import sys
+import subprocess
 import paramiko
 import secrets
 import socket
-import sys
 from flask import Flask, render_template, request, abort, make_response
 from flask_socketio import SocketIO, emit
+
+ASYNC_MODE = os.getenv('WEBSSH_ASYNC_MODE', '').strip().lower()
+if not ASYNC_MODE:
+    ASYNC_MODE = 'threading'
+
+if ASYNC_MODE == 'eventlet':
+    try:
+        import eventlet
+        eventlet.monkey_patch()
+    except Exception as exc:
+        print(f"[!] Eventlet unavailable ({exc}); falling back to threading.", file=sys.stderr)
+        ASYNC_MODE = 'threading'
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 ACCESS_TOKEN = secrets.token_urlsafe(16)
 
-# Use eventlet for concurrency - disabled noisy loggers
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=False, engineio_logger=False)
+# Default to threading for consistent cross-platform behavior.
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode=ASYNC_MODE, logger=False, engineio_logger=False)
 
 # SSH Configuration
 SSH_HOST = '127.0.0.1'
 SSH_PORT = 22
 SSH_USER = os.getenv('USER', 'aska')
+DEFAULT_BIND_HOST = os.getenv('WEBSSH_HOST', '').strip()
+DEFAULT_PORT = int(os.getenv('WEBSSH_PORT', '5000'))
 
 class SSHBridge:
     def __init__(self, sid):
@@ -155,16 +166,21 @@ def on_disconnect():
         bridge.ssh.close()
     print(f"[-] Client disconnected: {request.sid}")
 
-def get_wsl_ip():
+def is_wsl():
+    if not sys.platform.startswith('linux'):
+        return False
+
+    if os.getenv('WSL_DISTRO_NAME'):
+        return True
+
     try:
-        # Use hostname -I to get all IPs, pick the first one which is usually the main WSL interface
-        import subprocess
-        result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
-        ips = result.stdout.strip().split()
-        if ips:
-            return ips[0]
-        
-        # Fallback to socket method
+        with open('/proc/version', 'r', encoding='utf-8') as version_file:
+            return 'microsoft' in version_file.read().lower()
+    except OSError:
+        return False
+
+def get_primary_ip():
+    try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
@@ -173,16 +189,59 @@ def get_wsl_ip():
     except Exception:
         return "127.0.0.1"
 
+def get_wsl_ip():
+    try:
+        result = subprocess.run(['hostname', '-I'], capture_output=True, text=True, check=False)
+        ips = result.stdout.strip().split()
+        if ips:
+            return ips[0]
+    except Exception:
+        pass
+
+    return get_primary_ip()
+
+def get_bind_host():
+    if DEFAULT_BIND_HOST:
+        return DEFAULT_BIND_HOST
+
+    if is_wsl():
+        return get_wsl_ip()
+
+    return "127.0.0.1"
+
+def get_access_host(bind_host):
+    if bind_host in {"0.0.0.0", "::"}:
+        return get_primary_ip()
+
+    return bind_host
+
+def get_runtime_name():
+    if is_wsl():
+        return "WSL"
+    if sys.platform == 'darwin':
+        return "macOS"
+    if sys.platform.startswith('win'):
+        return "Windows"
+    return "Linux"
+
 if __name__ == '__main__':
-    wsl_ip = get_wsl_ip()
-    port = 5000
+    bind_host = get_bind_host()
+    access_host = get_access_host(bind_host)
+    port = DEFAULT_PORT
     print("\n" + "="*60)
     print(f"WebSSH Server Starting...")
-    print(f"Access URL: http://{wsl_ip}:{port}/?token={ACCESS_TOKEN}")
-    print(f"Listening on: {wsl_ip}:{port}")
+    print(f"Runtime: {get_runtime_name()}")
+    print(f"Async Mode: {ASYNC_MODE}")
+    print(f"Access URL: http://{access_host}:{port}/?token={ACCESS_TOKEN}")
+    print(f"Listening on: {bind_host}:{port}")
+    if sys.platform == 'darwin':
+        print("Tip: Enable Remote Login in macOS if you want localhost SSH access.")
     print("="*60 + "\n")
     
     sys.stdout.flush()
-    
-    # Bind only to the specific WSL IP as requested
-    socketio.run(app, host=wsl_ip, port=port)
+
+    run_kwargs = {'host': bind_host, 'port': port}
+    if ASYNC_MODE == 'threading':
+        run_kwargs['allow_unsafe_werkzeug'] = True
+
+    socketio.run(app, **run_kwargs)
