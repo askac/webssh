@@ -28,7 +28,21 @@ A lightweight, web-based SSH terminal with advanced features, designed to run on
 
 ## Quick Start
 
-### For macOS / Linux / WSL Users
+### One-liner Install (macOS / Linux / WSL)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/askac/webssh/main/install.sh | bash
+```
+
+This clones the repo to `~/webssh`, installs dependencies, and starts the server automatically.
+Re-running it will `git pull` and launch the latest version.
+
+To install to a custom directory:
+```bash
+curl -fsSL https://raw.githubusercontent.com/askac/webssh/main/install.sh | bash -s -- --dir ~/mydir
+```
+
+### Manual Setup (macOS / Linux / WSL)
 1. Clone the repository.
 2. Run the automated starter:
    ```bash
