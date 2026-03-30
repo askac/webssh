@@ -336,14 +336,14 @@
             window.addEventListener('contextmenu', (e) => { if (e.shiftKey) return; e.preventDefault(); setTimeout(() => showContextMenu(e.clientX, e.clientY), 50); });
             window.addEventListener('mousedown', (e) => { if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none'; });
             
-            // --- FIXED: Optimize Performance by moving copy logic to mouseup ---
+            // --- FIXED: Professional 'Copy-on-Select and Clear' behavior ---
             window.addEventListener('mouseup', (e) => {
                 if (e.button === 0) { // Left click release
                     setTimeout(() => {
                         const sel = term.getSelection().trim();
-                        // Only perform expensive clipboard action if enabled AND there is actual selection
                         if (prefs.copyOnSelect && sel) {
                             copyToClipboard(sel);
+                            term.clearSelection(); // Professional behavior: clear after copy
                         }
                     }, 50);
                 }
