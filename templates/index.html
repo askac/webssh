@@ -299,17 +299,42 @@
 
             const socket = io({ query: { token: (new URLSearchParams(window.location.search)).get('token') || "{{ token }}" }, reconnectionAttempts: 5 });
             socket.on('connect', () => { statusEl.innerText = "Connected"; statusEl.style.color = "#34c759"; });
-            socket.on('disconnect', (r) => { statusEl.innerText = "Disconnected (" + r + ")"; statusEl.style.color = "#ff9f0a"; document.getElementById('controls').style.display = 'block'; connectedAt = null; document.getElementById('uptime-section').style.display = 'none'; });
+            socket.on('disconnect', (r) => {
+                statusEl.innerText = "Disconnected (" + r + ")";
+                statusEl.style.color = "#ff9f0a";
+                document.getElementById('controls').style.display = 'block';
+
+                // --- FIXED: Reset button state ---
+                const btn = document.getElementById('connectBtn');
+                btn.innerText = "Connect to SSH";
+                btn.disabled = false;
+
+                connectedAt = null;
+                document.getElementById('uptime-section').style.display = 'none';
+            });
 
             function resize() { if (fitAddon) fitAddon.fit(); if (socket.connected) socket.emit('resize', { cols: term.cols, rows: term.rows }); }
             window.addEventListener('resize', resize);
 
-            document.getElementById('connectBtn').onclick = () => {
+            const doConnect = () => {
                 errorEl.style.display = 'none';
-                socket.emit('start_ssh', { host: document.getElementById('host').value, port: document.getElementById('port').value, username: document.getElementById('username').value, password: document.getElementById('password').value });
-                document.getElementById('connectBtn').innerText = "Connecting..."; document.getElementById('connectBtn').disabled = true;
+                const host = document.getElementById('host').value;
+                const port = document.getElementById('port').value;
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                socket.emit('start_ssh', { host, port, username, password });
+                document.getElementById('connectBtn').innerText = "Connecting...";
+                document.getElementById('connectBtn').disabled = true;
             };
 
+            document.getElementById('connectBtn').onclick = doConnect;
+
+            // --- FIXED: Enter key support ---
+            [ 'host', 'port', 'username', 'password' ].forEach(id => {
+                document.getElementById(id).addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') doConnect();
+                });
+            });
             term.onData(data => { if (socket.connected) socket.emit('ssh_input', { data }); });
             socket.on('ssh_output', data => {
                 if (data.data.includes('[ERROR]')) {

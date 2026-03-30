@@ -42,18 +42,22 @@ class SSHBridge:
 
     def connect(self, host, port, user, password=None):
         try:
-            # PTT or BBS might need empty password string instead of None
             pwd = password if password else ""
             print(f"[*] Attempting SSH connection for {user} at {host}:{port}...")
+            
+            # --- FIXED: Smart Key Auth for localhost ---
+            # If host is localhost and password is empty, try local keys
+            is_localhost = host in ['127.0.0.1', 'localhost', '::1']
+            allow_keys = True if (is_localhost and not pwd) else False
             
             self.ssh.connect(
                 host, 
                 port=int(port), 
                 username=user, 
-                password=pwd, 
+                password=pwd if not allow_keys else None, 
                 timeout=15,
-                allow_agent=False,     # Avoid using local agent keys
-                look_for_keys=False    # Avoid using local key files
+                allow_agent=True if allow_keys else False,
+                look_for_keys=allow_keys
             )
             self.channel = self.ssh.invoke_shell(term='xterm', width=80, height=24)
             self.channel.setblocking(0)
