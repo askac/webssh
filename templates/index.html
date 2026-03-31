@@ -176,6 +176,16 @@
                     <div class="settings-tab" id="tab-appearance">
                         <fieldset class="settings-fieldset">
                             <legend>Appearance</legend>
+                            <div class="settings-row"><label for="pref-colorScheme">Color scheme</label>
+                                <select id="pref-colorScheme">
+                                    <option value="vintage">Vintage (CRT Classic)</option>
+                                    <option value="campbell">Campbell (Windows Default)</option>
+                                    <option value="oneHalfDark">One Half Dark</option>
+                                    <option value="solarizedDark">Solarized Dark</option>
+                                    <option value="tangoDark">Tango Dark</option>
+                                    <option value="blackOnWhite">Black on White</option>
+                                </select>
+                            </div>
                             <div class="settings-row"><label for="pref-fontFace">Font face</label><input type="text" id="pref-fontFace"></div>
                             <div class="settings-row"><label for="pref-fontSize">Font size</label><input type="number" id="pref-fontSize" min="8" max="32"></div>
                         </fieldset>
@@ -211,6 +221,16 @@
     </div>
 
     <script>
+        // --- Color Schemes ---
+        const SCHEMES = {
+            vintage: { background: '#000000', foreground: '#d2d2d2', black: '#000000', red: '#d81e05', green: '#0dcd79', yellow: '#e5e510', blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5', brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543', brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#ffffff', cursor: '#adadad' },
+            campbell: { background: '#0c0c0c', foreground: '#cccccc', black: '#0c0c0c', red: '#c50f1f', green: '#13a10e', yellow: '#c19c00', blue: '#0037da', magenta: '#881798', cyan: '#3a96dd', white: '#cccccc', brightBlack: '#767676', brightRed: '#e74856', brightGreen: '#16c60c', brightYellow: '#f9f1a5', brightBlue: '#3b78ff', brightMagenta: '#b4009e', brightCyan: '#61d6d6', brightWhite: '#f2f2f2', cursor: '#ffffff' },
+            oneHalfDark: { background: '#282c34', foreground: '#dcdfe4', black: '#282c34', red: '#e06c75', green: '#98c379', yellow: '#e5c07b', blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#dcdfe4', brightBlack: '#5c6370', brightRed: '#e06c75', brightGreen: '#98c379', brightYellow: '#e5c07b', brightBlue: '#61afef', brightMagenta: '#c678dd', brightCyan: '#56b6c2', brightWhite: '#ffffff', cursor: '#ffffff' },
+            solarizedDark: { background: '#002b36', foreground: '#839496', black: '#073642', red: '#dc322f', green: '#859900', yellow: '#b58900', blue: '#268bd2', magenta: '#d33682', cyan: '#2aa198', white: '#eee8d5', brightBlack: '#002b36', brightRed: '#cb4b16', brightGreen: '#586e75', brightYellow: '#657b83', brightBlue: '#839496', brightMagenta: '#6c71c4', brightCyan: '#93a1a1', brightWhite: '#fdf6e3', cursor: '#93a1a1' },
+            tangoDark: { background: '#2e3436', foreground: '#eeeeec', black: '#2e3436', red: '#cc0000', green: '#4e9a06', yellow: '#c4a000', blue: '#3465a4', magenta: '#75507b', cyan: '#06989a', white: '#d3d7cf', brightBlack: '#555753', brightRed: '#ef2929', brightGreen: '#8ae234', brightYellow: '#fce94f', brightBlue: '#729fcf', brightMagenta: '#ad7fa8', brightCyan: '#34e2e2', brightWhite: '#eeeeec', cursor: '#eeeeec' },
+            blackOnWhite: { background: '#ffffff', foreground: '#000000', black: '#000000', red: '#cd3131', green: '#00bc74', yellow: '#949800', blue: '#0451a5', magenta: '#bc05bc', cyan: '#0598bc', white: '#555555', brightBlack: '#666666', brightRed: '#cd3131', brightGreen: '#14ce80', brightYellow: '#b5ba00', brightBlue: '#0451a5', brightMagenta: '#bc05bc', brightCyan: '#0598bc', brightWhite: '#a5a5a5', cursor: '#000000' }
+        };
+
         // --- Preferences ---
         const PREF_KEY = 'webssh.pref.v1';
         const PREF_DEFAULTS = { 
@@ -220,7 +240,8 @@
             detectUrls: true, 
             urlClickAction: 'overlay', 
             fontFace: 'Consolas, "Courier New", monospace', 
-            fontSize: 14 
+            fontSize: 14,
+            colorScheme: 'vintage'
         };
         function loadPrefs() { try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREF_KEY)) }; } catch (e) { return { ...PREF_DEFAULTS }; } }
         function savePrefs(p) { localStorage.setItem(PREF_KEY, JSON.stringify(p)); }
@@ -297,7 +318,7 @@
                 cursorBlink: true,
                 fontFamily: prefs.fontFace,
                 fontSize: prefs.fontSize,
-                theme: { background: '#000000', foreground: '#d2d2d2' }
+                theme: SCHEMES[prefs.colorScheme] || SCHEMES.vintage
             });
             let fitAddon = (typeof FitAddon !== 'undefined') ? new FitAddon.FitAddon() : null;
             if (fitAddon) term.loadAddon(fitAddon);
@@ -465,6 +486,7 @@
                 document.getElementById('pref-enablePicPreview').checked = prefs.enablePicPreview;
                 document.getElementById('pref-detectUrls').checked = prefs.detectUrls;
                 document.getElementById('pref-urlClickAction').value = prefs.urlClickAction;
+                document.getElementById('pref-colorScheme').value = prefs.colorScheme;
                 document.getElementById('pref-fontFace').value = prefs.fontFace;
                 document.getElementById('pref-fontSize').value = prefs.fontSize;
                 settingsModal.classList.add('open');
@@ -485,10 +507,13 @@
                 prefs.enablePicPreview = document.getElementById('pref-enablePicPreview').checked;
                 prefs.detectUrls = document.getElementById('pref-detectUrls').checked;
                 prefs.urlClickAction = document.getElementById('pref-urlClickAction').value;
+                prefs.colorScheme = document.getElementById('pref-colorScheme').value;
                 prefs.fontFace = document.getElementById('pref-fontFace').value;
                 prefs.fontSize = parseInt(document.getElementById('pref-fontSize').value);
                 savePrefs(prefs);
-                term.options.fontFamily = prefs.fontFace; term.options.fontSize = prefs.fontSize;
+                term.options.fontFamily = prefs.fontFace; 
+                term.options.fontSize = prefs.fontSize;
+                term.options.theme = SCHEMES[prefs.colorScheme] || SCHEMES.vintage;
                 resize(); applyDetectUrls(); settingsModal.classList.remove('open');
             };
             document.getElementById('settings-reset').onclick = () => { prefs = { ...PREF_DEFAULTS }; savePrefs(prefs); location.reload(); };
