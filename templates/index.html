@@ -178,13 +178,20 @@
                             <legend>Appearance</legend>
                             <div class="settings-row"><label for="pref-colorScheme">Color scheme</label>
                                 <select id="pref-colorScheme">
-                                    <option value="ibm5153">IBM 5153 (CGA Classic)</option>
-                                    <option value="vintage">Vintage (CRT Classic)</option>
-                                    <option value="campbell">Campbell (Windows Default)</option>
-                                    <option value="oneHalfDark">One Half Dark</option>
-                                    <option value="solarizedDark">Solarized Dark</option>
-                                    <option value="tangoDark">Tango Dark</option>
-                                    <option value="blackOnWhite">Black on White</option>
+                                    <optgroup label="Custom">
+                                        <option value="ibm5153">IBM 5153 (CGA Classic)</option>
+                                    </optgroup>
+                                    <optgroup label="Windows Terminal Official">
+                                        <option value="campbell">Campbell</option>
+                                        <option value="campbellPowershell">Campbell PowerShell</option>
+                                        <option value="vintage">Vintage</option>
+                                        <option value="oneHalfDark">One Half Dark</option>
+                                        <option value="oneHalfLight">One Half Light</option>
+                                        <option value="solarizedDark">Solarized Dark</option>
+                                        <option value="solarizedLight">Solarized Light</option>
+                                        <option value="tangoDark">Tango Dark</option>
+                                        <option value="tangoLight">Tango Light</option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div class="settings-row"><label for="pref-fontFace">Font face</label><input type="text" id="pref-fontFace"></div>
@@ -222,15 +229,18 @@
     </div>
 
     <script>
-        // --- Color Schemes ---
+        // --- Official Windows Terminal Color Schemes Replicated ---
         const SCHEMES = {
             ibm5153: { background: '#000000', foreground: '#aaaaaa', black: '#000000', red: '#aa0000', green: '#00aa00', yellow: '#aa5500', blue: '#0000aa', magenta: '#aa00aa', cyan: '#00aaaa', white: '#aaaaaa', brightBlack: '#555555', brightRed: '#ff5555', brightGreen: '#55ff55', brightYellow: '#ffff55', brightBlue: '#5555ff', brightMagenta: '#ff55ff', brightCyan: '#55ffff', brightWhite: '#ffffff', cursor: '#aaaaaa' },
-            vintage: { background: '#000000', foreground: '#d2d2d2', black: '#000000', red: '#d81e05', green: '#0dcd79', yellow: '#e5e510', blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5', brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543', brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#ffffff', cursor: '#adadad' },
-            campbell: { background: '#0c0c0c', foreground: '#cccccc', black: '#0c0c0c', red: '#c50f1f', green: '#13a10e', yellow: '#c19c00', blue: '#0037da', magenta: '#881798', cyan: '#3a96dd', white: '#cccccc', brightBlack: '#767676', brightRed: '#e74856', brightGreen: '#16c60c', brightYellow: '#f9f1a5', brightBlue: '#3b78ff', brightMagenta: '#b4009e', brightCyan: '#61d6d6', brightWhite: '#f2f2f2', cursor: '#ffffff' },
-            oneHalfDark: { background: '#282c34', foreground: '#dcdfe4', black: '#282c34', red: '#e06c75', green: '#98c379', yellow: '#e5c07b', blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#dcdfe4', brightBlack: '#5c6370', brightRed: '#e06c75', brightGreen: '#98c379', brightYellow: '#e5c07b', brightBlue: '#61afef', brightMagenta: '#c678dd', brightCyan: '#56b6c2', brightWhite: '#ffffff', cursor: '#ffffff' },
-            solarizedDark: { background: '#002b36', foreground: '#839496', black: '#073642', red: '#dc322f', green: '#859900', yellow: '#b58900', blue: '#268bd2', magenta: '#d33682', cyan: '#2aa198', white: '#eee8d5', brightBlack: '#002b36', brightRed: '#cb4b16', brightGreen: '#586e75', brightYellow: '#657b83', brightBlue: '#839496', brightMagenta: '#6c71c4', brightCyan: '#93a1a1', brightWhite: '#fdf6e3', cursor: '#93a1a1' },
-            tangoDark: { background: '#2e3436', foreground: '#eeeeec', black: '#2e3436', red: '#cc0000', green: '#4e9a06', yellow: '#c4a000', blue: '#3465a4', magenta: '#75507b', cyan: '#06989a', white: '#d3d7cf', brightBlack: '#555753', brightRed: '#ef2929', brightGreen: '#8ae234', brightYellow: '#fce94f', brightBlue: '#729fcf', brightMagenta: '#ad7fa8', brightCyan: '#34e2e2', brightWhite: '#eeeeec', cursor: '#eeeeec' },
-            blackOnWhite: { background: '#ffffff', foreground: '#000000', black: '#000000', red: '#cd3131', green: '#00bc74', yellow: '#949800', blue: '#0451a5', magenta: '#bc05bc', cyan: '#0598bc', white: '#555555', brightBlack: '#666666', brightRed: '#cd3131', brightGreen: '#14ce80', brightYellow: '#b5ba00', brightBlue: '#0451a5', brightMagenta: '#bc05bc', brightCyan: '#0598bc', brightWhite: '#a5a5a5', cursor: '#000000' }
+            campbell: { background: '#0C0C0C', foreground: '#CCCCCC', black: '#0C0C0C', red: '#C50F1F', green: '#13A10E', yellow: '#C19C00', blue: '#0037DA', magenta: '#881798', cyan: '#3A96DD', white: '#CCCCCC', brightBlack: '#767676', brightRed: '#E74856', brightGreen: '#16C60C', brightYellow: '#F9F1A5', brightBlue: '#3B78FF', brightMagenta: '#B4009E', brightCyan: '#61D6D6', brightWhite: '#F2F2F2', cursor: '#FFFFFF' },
+            campbellPowershell: { background: '#012456', foreground: '#CCCCCC', black: '#0C0C0C', red: '#C50F1F', green: '#13A10E', yellow: '#C19C00', blue: '#0037DA', magenta: '#881798', cyan: '#3A96DD', white: '#CCCCCC', brightBlack: '#767676', brightRed: '#E74856', brightGreen: '#16C60C', brightYellow: '#F9F1A5', brightBlue: '#3B78FF', brightMagenta: '#B4009E', brightCyan: '#61D6D6', brightWhite: '#F2F2F2', cursor: '#FFFFFF' },
+            vintage: { background: '#000000', foreground: '#C0C0C0', black: '#000000', red: '#800000', green: '#008000', yellow: '#808000', blue: '#000080', magenta: '#800080', cyan: '#008080', white: '#C0C0C0', brightBlack: '#808080', brightRed: '#FF0000', brightGreen: '#00FF00', brightYellow: '#FFFF00', brightBlue: '#0000FF', brightMagenta: '#FF00FF', brightCyan: '#00FFFF', brightWhite: '#FFFFFF', cursor: '#FFFFFF' },
+            oneHalfDark: { background: '#282C34', foreground: '#DCDFE4', black: '#282C34', red: '#E06C75', green: '#98C379', yellow: '#E5C07B', blue: '#61AFEF', magenta: '#C678DD', cyan: '#56B6C2', white: '#DCDFE4', brightBlack: '#5A6374', brightRed: '#E06C75', brightGreen: '#98C379', brightYellow: '#E5C07B', brightBlue: '#61AFEF', brightMagenta: '#C678DD', brightCyan: '#56B6C2', brightWhite: '#FFFFFF', cursor: '#FFFFFF' },
+            oneHalfLight: { background: '#FAFAFA', foreground: '#383A42', black: '#383A42', red: '#E45649', green: '#50A14F', yellow: '#C18301', blue: '#0184BC', magenta: '#A626A4', cyan: '#0997B3', white: '#FAFAFA', brightBlack: '#4F525D', brightRed: '#DF6C75', brightGreen: '#98C379', brightYellow: '#E4C07A', brightBlue: '#61AFEF', brightMagenta: '#C577DD', brightCyan: '#56B5C1', brightWhite: '#FFFFFF', cursor: '#4F525D' },
+            solarizedDark: { background: '#002B36', foreground: '#839496', black: '#002B36', red: '#DC322F', green: '#859900', yellow: '#B58900', blue: '#268BD2', magenta: '#D33682', cyan: '#2AA198', white: '#EEE8D5', brightBlack: '#073642', brightRed: '#CB4B16', brightGreen: '#586E75', brightYellow: '#657B83', brightBlue: '#839496', brightMagenta: '#6C71C4', brightCyan: '#93A1A1', brightWhite: '#FDF6E3', cursor: '#FFFFFF' },
+            solarizedLight: { background: '#FDF6E3', foreground: '#657B83', black: '#002B36', red: '#DC322F', green: '#859900', yellow: '#B58900', blue: '#268BD2', magenta: '#D33682', cyan: '#2AA198', white: '#EEE8D5', brightBlack: '#073642', brightRed: '#CB4B16', brightGreen: '#586E75', brightYellow: '#657B83', brightBlue: '#839496', brightMagenta: '#6C71C4', brightCyan: '#93A1A1', brightWhite: '#FDF6E3', cursor: '#002B36' },
+            tangoDark: { background: '#000000', foreground: '#D3D7CF', black: '#000000', red: '#CC0000', green: '#4E9A06', yellow: '#C4A000', blue: '#3465A4', magenta: '#75507B', cyan: '#06989A', white: '#D3D7CF', brightBlack: '#555753', brightRed: '#EF2929', brightGreen: '#8AE234', brightYellow: '#FCE94F', brightBlue: '#729FCF', brightMagenta: '#AD7FA8', brightCyan: '#34E2E2', brightWhite: '#EEEEEC', cursor: '#FFFFFF' },
+            tangoLight: { background: '#FFFFFF', foreground: '#555753', black: '#000000', red: '#CC0000', green: '#4E9A06', yellow: '#C4A000', blue: '#3465A4', magenta: '#75507B', cyan: '#06989A', white: '#D3D7CF', brightBlack: '#555753', brightRed: '#EF2929', brightGreen: '#8AE234', brightYellow: '#FCE94F', brightBlue: '#729FCF', brightMagenta: '#AD7FA8', brightCyan: '#34E2E2', brightWhite: '#EEEEEC', cursor: '#000000' }
         };
 
         // --- Preferences ---
@@ -320,7 +330,7 @@
                 cursorBlink: true,
                 fontFamily: prefs.fontFace,
                 fontSize: prefs.fontSize,
-                theme: SCHEMES[prefs.colorScheme] || SCHEMES.vintage
+                theme: SCHEMES[prefs.colorScheme] || SCHEMES.ibm5153
             });
             let fitAddon = (typeof FitAddon !== 'undefined') ? new FitAddon.FitAddon() : null;
             if (fitAddon) term.loadAddon(fitAddon);
@@ -418,7 +428,7 @@
                 contextMenu.style.display = 'none';
                 prefs.useCustomMenu = false;
                 savePrefs(prefs);
-                alert("Custom menu disabled. Now Right-Click will show browser menu.\n\nTo restore, use the ⚙️ icon in status bar or Press Shift + Right-Click.");
+                alert("Custom menu disabled. To restore, use the ⚙️ icon or Press Shift + Right-Click.");
             };
 
             function openUrlInOverlay(url) {
@@ -515,7 +525,7 @@
                 savePrefs(prefs);
                 term.options.fontFamily = prefs.fontFace; 
                 term.options.fontSize = prefs.fontSize;
-                term.options.theme = SCHEMES[prefs.colorScheme] || SCHEMES.vintage;
+                term.options.theme = SCHEMES[prefs.colorScheme] || SCHEMES.ibm5153;
                 resize(); applyDetectUrls(); settingsModal.classList.remove('open');
             };
             document.getElementById('settings-reset').onclick = () => { prefs = { ...PREF_DEFAULTS }; savePrefs(prefs); location.reload(); };
