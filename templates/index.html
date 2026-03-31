@@ -46,6 +46,7 @@
         .header-btn { background: #444; color: white; border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-weight: bold; font-size: 11px; }
         .header-btn:hover { background: #666; }
         #close-overlay { background: #ff453a; }
+        #close-overlay:hover { background: #ff6b61; }
 
         /* Context Menu */
         #context-menu {
@@ -84,7 +85,7 @@
         .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #2c2c2e; }
         .settings-row:last-child { border-bottom: none; }
         .settings-row label { flex: 1; color: #ddd; cursor: pointer; }
-        .settings-row input, .settings-row select { background: #2c2c2e; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .settings-row input, .settings-row select { background: #2c2c2e; border: 1px solid #555; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; outline: none; }
         .settings-footer { display: flex; justify-content: space-between; padding: 12px 20px; border-top: 1px solid #3a3a3c; }
         .settings-btn { padding: 7px 18px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
 
@@ -93,11 +94,16 @@
         #controls h2 { margin-top: 0; color: #0a84ff; font-size: 1.2rem; }
         #controls input { display: block; width: 100%; margin-bottom: 15px; padding: 10px; background: #333; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
         #controls button { width: 100%; padding: 12px; background: #0a84ff; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        #controls button:hover { background: #007aff; }
         
         /* Status Bar */
         #status-bar { position: absolute; bottom: 0; left: 0; right: 0; background: #111; color: #888; font-size: 12px; padding: 2px 10px; z-index: 50; border-top: 1px solid #222; display: flex; align-items: center; }
-        .sb-sep { margin: 0 8px; color: #444; }
+        .sb-sep { margin: 0 8px; color: #444; user-select: none; }
         .error-msg { color: #ff453a; font-size: 13px; margin-bottom: 10px; display: none; }
+        
+        /* Quick Settings Button */
+        #quick-settings { margin-left: auto; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 0 5px; }
+        #quick-settings:hover { opacity: 1; color: #0a84ff; }
     </style>
 </head>
 <body>
@@ -145,7 +151,10 @@
 
     <div id="settings-modal">
         <div class="settings-box">
-            <div class="settings-header"><h3>Settings</h3><button class="header-btn" id="settings-close" style="background:#ff453a;">&times;</button></div>
+            <div class="settings-header">
+                <h3>Settings</h3>
+                <button class="header-btn" id="settings-close" style="background:#ff453a;">&times;</button>
+            </div>
             <div class="settings-body">
                 <div class="settings-nav">
                     <div class="settings-nav-item active" data-tab="general">General</div>
@@ -155,6 +164,7 @@
                     <div class="settings-tab active" id="tab-general">
                         <fieldset class="settings-fieldset">
                             <legend>General</legend>
+                            <div class="settings-row"><label for="pref-useCustomMenu">Enable custom context menu</label><input type="checkbox" id="pref-useCustomMenu"></div>
                             <div class="settings-row"><label for="pref-copyOnSelect">Copy on select</label><input type="checkbox" id="pref-copyOnSelect"></div>
                             <div class="settings-row"><label for="pref-enablePicPreview">Enable pic preview</label><input type="checkbox" id="pref-enablePicPreview"></div>
                             <div class="settings-row"><label for="pref-detectUrls">Detect & linkify URLs</label><input type="checkbox" id="pref-detectUrls"></div>
@@ -197,17 +207,26 @@
         <span class="sb-sep">|</span>
         <span id="clock-display"></span>
         <span id="uptime-section" style="display:none"><span class="sb-sep">|</span>connected:&nbsp;<span id="uptime-display"></span></span>
+        <div id="quick-settings" title="Settings">&#x2699;&#xFE0F;</div>
     </div>
 
     <script>
-        // --- Preferences Implementation ---
+        // --- Preferences ---
         const PREF_KEY = 'webssh.pref.v1';
-        const PREF_DEFAULTS = { copyOnSelect: false, enablePicPreview: true, detectUrls: true, urlClickAction: 'overlay', fontFace: 'Consolas, "Courier New", monospace', fontSize: 14 };
+        const PREF_DEFAULTS = { 
+            useCustomMenu: true,
+            copyOnSelect: false, 
+            enablePicPreview: true, 
+            detectUrls: true, 
+            urlClickAction: 'overlay', 
+            fontFace: 'Consolas, "Courier New", monospace', 
+            fontSize: 14 
+        };
         function loadPrefs() { try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREF_KEY)) }; } catch (e) { return { ...PREF_DEFAULTS }; } }
         function savePrefs(p) { localStorage.setItem(PREF_KEY, JSON.stringify(p)); }
         let prefs = loadPrefs();
 
-        // --- Clipboard Helper (Support HTTP Fallback) ---
+        // --- Clipboard Helper ---
         function copyToClipboard(text) {
             if (!text) return;
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -224,8 +243,6 @@
 
         // --- Loader Logic ---
         let startTime = Date.now();
-        let scriptsLoaded = 0;
-        const totalScripts = 4;
         const timerInterval = setInterval(() => { document.getElementById('loader-timer').innerText = ((Date.now() - startTime) / 1000).toFixed(1) + 's'; }, 100);
 
         function loadScript(id, localUrl, cdnUrl) {
@@ -272,40 +289,15 @@
             }
             setInterval(() => {
                 const now = new Date();
-                const clockEl = document.getElementById('clock-display');
-                const uptimeEl = document.getElementById('uptime-display');
-                if (clockEl) clockEl.innerText = now.toLocaleString();
-                if (connectedAt && uptimeEl) {
-                    uptimeEl.innerText = formatUptime(Math.floor((now - connectedAt) / 1000));
-                }
+                document.getElementById('clock-display').innerText = now.toLocaleString();
+                if (connectedAt) document.getElementById('uptime-display').innerText = formatUptime(Math.floor((now - connectedAt) / 1000));
             }, 1000);
 
             const term = new Terminal({
                 cursorBlink: true,
                 fontFamily: prefs.fontFace,
                 fontSize: prefs.fontSize,
-                theme: {
-                    background: '#000000',
-                    foreground: '#d2d2d2',
-                    cursor: '#adadad',
-                    selectionBackground: 'rgba(255, 255, 255, 0.3)',
-                    black: '#000000',
-                    red: '#d81e05',
-                    green: '#0dcd79',
-                    yellow: '#e5e510',
-                    blue: '#2472c8',
-                    magenta: '#bc3fbc',
-                    cyan: '#11a8cd',
-                    white: '#e5e5e5',
-                    brightBlack: '#666666',
-                    brightRed: '#f14c4c',
-                    brightGreen: '#23d18b',
-                    brightYellow: '#f5f543',
-                    brightBlue: '#3b8eea',
-                    brightMagenta: '#d670d6',
-                    brightCyan: '#29b8db',
-                    brightWhite: '#ffffff'
-                }
+                theme: { background: '#000000', foreground: '#d2d2d2' }
             });
             let fitAddon = (typeof FitAddon !== 'undefined') ? new FitAddon.FitAddon() : null;
             if (fitAddon) term.loadAddon(fitAddon);
@@ -327,18 +319,14 @@
 
             const socket = io({ query: { token: (new URLSearchParams(window.location.search)).get('token') || "{{ token }}" }, reconnectionAttempts: 5 });
             socket.on('connect', () => { statusEl.innerText = "Connected"; statusEl.style.color = "#34c759"; });
-            socket.on('disconnect', (r) => {
-                statusEl.innerText = "Disconnected (" + r + ")";
-                statusEl.style.color = "#ff9f0a";
-                document.getElementById('controls').style.display = 'block';
-
-                // --- FIXED: Reset button state ---
-                const btn = document.getElementById('connectBtn');
-                btn.innerText = "Connect to SSH";
-                btn.disabled = false;
-
-                connectedAt = null;
-                document.getElementById('uptime-section').style.display = 'none';
+            socket.on('disconnect', (r) => { 
+                statusEl.innerText = "Disconnected (" + r + ")"; 
+                statusEl.style.color = "#ff9f0a"; 
+                document.getElementById('controls').style.display = 'block'; 
+                document.getElementById('connectBtn').innerText = "Connect to SSH";
+                document.getElementById('connectBtn').disabled = false;
+                connectedAt = null; 
+                document.getElementById('uptime-section').style.display = 'none'; 
             });
 
             function resize() { if (fitAddon) fitAddon.fit(); if (socket.connected) socket.emit('resize', { cols: term.cols, rows: term.rows }); }
@@ -346,23 +334,19 @@
 
             const doConnect = () => {
                 errorEl.style.display = 'none';
-                const host = document.getElementById('host').value;
-                const port = document.getElementById('port').value;
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
-                socket.emit('start_ssh', { host, port, username, password });
-                document.getElementById('connectBtn').innerText = "Connecting...";
-                document.getElementById('connectBtn').disabled = true;
-            };
-
-            document.getElementById('connectBtn').onclick = doConnect;
-
-            // --- FIXED: Enter key support ---
-            [ 'host', 'port', 'username', 'password' ].forEach(id => {
-                document.getElementById(id).addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') doConnect();
+                socket.emit('start_ssh', { 
+                    host: document.getElementById('host').value, 
+                    port: document.getElementById('port').value, 
+                    username: document.getElementById('username').value, 
+                    password: document.getElementById('password').value 
                 });
+                document.getElementById('connectBtn').innerText = "Connecting..."; document.getElementById('connectBtn').disabled = true;
+            };
+            document.getElementById('connectBtn').onclick = doConnect;
+            ['host', 'port', 'username', 'password'].forEach(id => {
+                document.getElementById(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') doConnect(); });
             });
+
             term.onData(data => { if (socket.connected) socket.emit('ssh_input', { data }); });
             socket.on('ssh_output', data => {
                 if (data.data.includes('[ERROR]')) {
@@ -376,7 +360,11 @@
                 }
             });
 
-            const contextMenu = document.getElementById('context-menu'), urlOverlay = document.getElementById('url-overlay'), openOption = document.getElementById('open-overlay-option'), searchOption = document.getElementById('search-google-option'), menuSepSel = document.getElementById('menu-sep-sel');
+            const contextMenu = document.getElementById('context-menu');
+            const urlOverlay = document.getElementById('url-overlay');
+            const openOption = document.getElementById('open-overlay-option');
+            const searchOption = document.getElementById('search-google-option');
+            const menuSepSel = document.getElementById('menu-sep-sel');
             const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'];
 
             function showContextMenu(x, y) {
@@ -386,50 +374,29 @@
                 contextMenu.style.left = `${x}px`; contextMenu.style.top = `${y}px`; contextMenu.style.display = 'block';
                 requestAnimationFrame(() => { const r = contextMenu.getBoundingClientRect(); if (r.right > window.innerWidth) contextMenu.style.left = `${x - r.width}px`; if (r.bottom > window.innerHeight) contextMenu.style.top = `${y - r.height}px`; });
             }
-            document.getElementById('native-menu-option').onclick = (e) => {
-                e.stopPropagation();
-                contextMenu.style.display = 'none';
-                
-                // --- Professional Fallback: Trigger native context menu ---
-                // We use a small timeout to let the current menu disappear
-                const x = parseInt(contextMenu.style.left);
-                const y = parseInt(contextMenu.style.top);
-                
-                // Temporary flag to allow the next contextmenu event
-                window._allowNativeOnce = true;
-                const ev = new MouseEvent('contextmenu', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window,
-                    clientX: x,
-                    clientY: y,
-                    button: 2
-                });
-                document.elementFromPoint(x, y).dispatchEvent(ev);
-            };
-
-            window.addEventListener('contextmenu', (e) => {
-                if (e.shiftKey || window._allowNativeOnce) {
-                    window._allowNativeOnce = false;
-                    return; 
-                }
-                e.preventDefault();
-                setTimeout(() => showContextMenu(e.clientX, e.clientY), 50);
+            window.addEventListener('contextmenu', (e) => { 
+                if (e.shiftKey || !prefs.useCustomMenu) return; 
+                e.preventDefault(); 
+                setTimeout(() => showContextMenu(e.clientX, e.clientY), 50); 
             });
             window.addEventListener('mousedown', (e) => { if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none'; });
             
-            // --- FIXED: Professional 'Copy-on-Select and Clear' behavior ---
             window.addEventListener('mouseup', (e) => {
-                if (e.button === 0) { // Left click release
+                if (e.button === 0) {
                     setTimeout(() => {
                         const sel = term.getSelection().trim();
-                        if (prefs.copyOnSelect && sel) {
-                            copyToClipboard(sel);
-                            term.clearSelection(); // Professional behavior: clear after copy
-                        }
+                        if (prefs.copyOnSelect && sel) { copyToClipboard(sel); term.clearSelection(); }
                     }, 50);
                 }
             });
+
+            document.getElementById('native-menu-option').onclick = (e) => {
+                e.stopPropagation();
+                contextMenu.style.display = 'none';
+                prefs.useCustomMenu = false;
+                savePrefs(prefs);
+                alert("Custom menu disabled. Now Right-Click will show browser menu.\n\nTo restore, use the ⚙️ icon in status bar or Press Shift + Right-Click.");
+            };
 
             function openUrlInOverlay(url) {
                 if (!url.startsWith('http')) url = 'https://' + url;
@@ -442,7 +409,7 @@
                 if (isImg) document.getElementById('overlay-img').src = url; 
                 else {
                     document.getElementById('overlay-iframe').src = url;
-                    let timer = setTimeout(() => { if (document.getElementById('overlay-iframe').style.display !== 'none') { document.getElementById('overlay-iframe').style.display = 'none'; document.getElementById('overlay-fallback').style.display = 'flex'; document.getElementById('overlay-fallback-url').innerText = url; document.getElementById('overlay-fallback-open').onclick = () => window.open(url, '_blank'); } }, 8000);
+                    let timer = setTimeout(() => { if (document.getElementById('overlay-iframe').style.display !== 'none') { document.getElementById('overlay-iframe').style.display = 'none'; document.getElementById('overlay-fallback').style.display = 'flex'; } }, 8000);
                     document.getElementById('overlay-iframe').onload = () => clearTimeout(timer);
                 }
                 urlOverlay.style.display = 'flex';
@@ -454,8 +421,8 @@
                 e.stopPropagation(); contextMenu.style.display = 'none';
                 let text = "";
                 try {
-                    if (navigator.clipboard && navigator.clipboard.readText) { text = await navigator.clipboard.readText(); }
-                    else { text = prompt("Paste text here (Browser blocks clipboard on HTTP):"); }
+                    if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText();
+                    else text = prompt("Paste text here:");
                     if (text && socket.connected) socket.emit('ssh_input', { data: text });
                 } catch(err) {}
             };
@@ -492,7 +459,8 @@
             });
 
             const settingsModal = document.getElementById('settings-modal');
-            document.getElementById('settings-option').onclick = () => {
+            const openSettings = () => {
+                document.getElementById('pref-useCustomMenu').checked = prefs.useCustomMenu;
                 document.getElementById('pref-copyOnSelect').checked = prefs.copyOnSelect;
                 document.getElementById('pref-enablePicPreview').checked = prefs.enablePicPreview;
                 document.getElementById('pref-detectUrls').checked = prefs.detectUrls;
@@ -501,6 +469,8 @@
                 document.getElementById('pref-fontSize').value = prefs.fontSize;
                 settingsModal.classList.add('open');
             };
+            document.getElementById('settings-option').onclick = openSettings;
+            document.getElementById('quick-settings').onclick = openSettings;
             document.getElementById('settings-close').onclick = () => settingsModal.classList.remove('open');
             document.querySelectorAll('.settings-nav-item').forEach(item => {
                 item.onclick = () => {
@@ -510,6 +480,7 @@
                 };
             });
             document.getElementById('settings-save').onclick = () => {
+                prefs.useCustomMenu = document.getElementById('pref-useCustomMenu').checked;
                 prefs.copyOnSelect = document.getElementById('pref-copyOnSelect').checked;
                 prefs.enablePicPreview = document.getElementById('pref-enablePicPreview').checked;
                 prefs.detectUrls = document.getElementById('pref-detectUrls').checked;
@@ -521,7 +492,6 @@
                 resize(); applyDetectUrls(); settingsModal.classList.remove('open');
             };
             document.getElementById('settings-reset').onclick = () => { prefs = { ...PREF_DEFAULTS }; savePrefs(prefs); location.reload(); };
-
             setTimeout(resize, 500);
         }
         initApp();
