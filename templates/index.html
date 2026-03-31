@@ -178,6 +178,7 @@
                             <legend>Appearance</legend>
                             <div class="settings-row"><label for="pref-colorScheme">Color scheme</label>
                                 <select id="pref-colorScheme">
+                                    <option value="ibm5153">IBM 5153 (CGA Classic)</option>
                                     <option value="vintage">Vintage (CRT Classic)</option>
                                     <option value="campbell">Campbell (Windows Default)</option>
                                     <option value="oneHalfDark">One Half Dark</option>
@@ -223,6 +224,7 @@
     <script>
         // --- Color Schemes ---
         const SCHEMES = {
+            ibm5153: { background: '#000000', foreground: '#aaaaaa', black: '#000000', red: '#aa0000', green: '#00aa00', yellow: '#aa5500', blue: '#0000aa', magenta: '#aa00aa', cyan: '#00aaaa', white: '#aaaaaa', brightBlack: '#555555', brightRed: '#ff5555', brightGreen: '#55ff55', brightYellow: '#ffff55', brightBlue: '#5555ff', brightMagenta: '#ff55ff', brightCyan: '#55ffff', brightWhite: '#ffffff', cursor: '#aaaaaa' },
             vintage: { background: '#000000', foreground: '#d2d2d2', black: '#000000', red: '#d81e05', green: '#0dcd79', yellow: '#e5e510', blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5', brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543', brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#ffffff', cursor: '#adadad' },
             campbell: { background: '#0c0c0c', foreground: '#cccccc', black: '#0c0c0c', red: '#c50f1f', green: '#13a10e', yellow: '#c19c00', blue: '#0037da', magenta: '#881798', cyan: '#3a96dd', white: '#cccccc', brightBlack: '#767676', brightRed: '#e74856', brightGreen: '#16c60c', brightYellow: '#f9f1a5', brightBlue: '#3b78ff', brightMagenta: '#b4009e', brightCyan: '#61d6d6', brightWhite: '#f2f2f2', cursor: '#ffffff' },
             oneHalfDark: { background: '#282c34', foreground: '#dcdfe4', black: '#282c34', red: '#e06c75', green: '#98c379', yellow: '#e5c07b', blue: '#61afef', magenta: '#c678dd', cyan: '#56b6c2', white: '#dcdfe4', brightBlack: '#5c6370', brightRed: '#e06c75', brightGreen: '#98c379', brightYellow: '#e5c07b', brightBlue: '#61afef', brightMagenta: '#c678dd', brightCyan: '#56b6c2', brightWhite: '#ffffff', cursor: '#ffffff' },
@@ -241,7 +243,7 @@
             urlClickAction: 'overlay', 
             fontFace: 'Consolas, "Courier New", monospace', 
             fontSize: 14,
-            colorScheme: 'vintage'
+            colorScheme: 'ibm5153'
         };
         function loadPrefs() { try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem(PREF_KEY)) }; } catch (e) { return { ...PREF_DEFAULTS }; } }
         function savePrefs(p) { localStorage.setItem(PREF_KEY, JSON.stringify(p)); }
