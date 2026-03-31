@@ -116,6 +116,8 @@
         <div class="menu-separator" id="menu-sep-sel" style="display:none"></div>
         <div class="menu-item" id="pip-option">&#x29C9; Terminal to PiP</div>
         <div class="menu-item" id="settings-option">&#x2699;&#xFE0F; Settings</div>
+        <div class="menu-separator"></div>
+        <div class="menu-item" id="native-menu-option">&#x1F6AA; Use browser context menu</div>
     </div>
 
     <div id="url-overlay">
@@ -384,7 +386,36 @@
                 contextMenu.style.left = `${x}px`; contextMenu.style.top = `${y}px`; contextMenu.style.display = 'block';
                 requestAnimationFrame(() => { const r = contextMenu.getBoundingClientRect(); if (r.right > window.innerWidth) contextMenu.style.left = `${x - r.width}px`; if (r.bottom > window.innerHeight) contextMenu.style.top = `${y - r.height}px`; });
             }
-            window.addEventListener('contextmenu', (e) => { if (e.shiftKey) return; e.preventDefault(); setTimeout(() => showContextMenu(e.clientX, e.clientY), 50); });
+            document.getElementById('native-menu-option').onclick = (e) => {
+                e.stopPropagation();
+                contextMenu.style.display = 'none';
+                
+                // --- Professional Fallback: Trigger native context menu ---
+                // We use a small timeout to let the current menu disappear
+                const x = parseInt(contextMenu.style.left);
+                const y = parseInt(contextMenu.style.top);
+                
+                // Temporary flag to allow the next contextmenu event
+                window._allowNativeOnce = true;
+                const ev = new MouseEvent('contextmenu', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    clientX: x,
+                    clientY: y,
+                    button: 2
+                });
+                document.elementFromPoint(x, y).dispatchEvent(ev);
+            };
+
+            window.addEventListener('contextmenu', (e) => {
+                if (e.shiftKey || window._allowNativeOnce) {
+                    window._allowNativeOnce = false;
+                    return; 
+                }
+                e.preventDefault();
+                setTimeout(() => showContextMenu(e.clientX, e.clientY), 50);
+            });
             window.addEventListener('mousedown', (e) => { if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none'; });
             
             // --- FIXED: Professional 'Copy-on-Select and Clear' behavior ---
