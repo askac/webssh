@@ -104,6 +104,42 @@
         /* Quick Settings Button */
         #quick-settings { margin-left: auto; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 0 5px; }
         #quick-settings:hover { opacity: 1; color: #0a84ff; }
+        #debug-hud {
+            position: fixed;
+            right: 10px;
+            bottom: 28px;
+            z-index: 5000;
+            width: min(520px, calc(100vw - 20px));
+            max-height: 45vh;
+            display: none;
+            overflow: auto;
+            background: rgba(0, 0, 0, 0.92);
+            color: #9ef79e;
+            border: 1px solid #2f6;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font: 12px/1.4 Consolas, "Courier New", monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        #payload-log {
+            position: fixed;
+            left: 10px;
+            bottom: 28px;
+            z-index: 5000;
+            width: min(640px, calc(100vw - 20px));
+            max-height: 45vh;
+            display: none;
+            overflow: auto;
+            background: rgba(0, 0, 0, 0.94);
+            color: #d2e9ff;
+            border: 1px solid #58a6ff;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font: 12px/1.4 Consolas, "Courier New", monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body>
@@ -227,6 +263,8 @@
         <span id="uptime-section" style="display:none"><span class="sb-sep">|</span>connected:&nbsp;<span id="uptime-display"></span></span>
         <div id="quick-settings" title="Settings">&#x2699;&#xFE0F;</div>
     </div>
+    <div id="debug-hud"></div>
+    <div id="payload-log"></div>
 
     <script>
         // --- Official Windows Terminal Color Schemes Replicated ---
@@ -313,7 +351,44 @@
             const terminalContainer = document.getElementById('terminal');
             const statusEl = document.getElementById('socketStatus');
             const errorEl = document.getElementById('errorBox');
+            const debugHud = document.getElementById('debug-hud');
+            const payloadLog = document.getElementById('payload-log');
+            const debugEnabled = (new URLSearchParams(window.location.search)).get('debug') === '1';
             let connectedAt = null;
+            let payloadEntries = [];
+
+            function escapeForDebug(text) {
+                return text
+                    .replace(/\\/g, '\\\\')
+                    .replace(/\r/g, '\\r')
+                    .replace(/\n/g, '\\n\n');
+            }
+
+            function toCharCodes(text) {
+                return [...text].map((ch) => ch.charCodeAt(0)).join(' ');
+            }
+
+            function updateDebugHud(title, payload) {
+                if (!debugEnabled) return;
+                debugHud.style.display = 'block';
+                debugHud.textContent =
+                    `title=${title}\n` +
+                    `cols=${term.cols} rows=${term.rows}\n` +
+                    `payload=${payload}`;
+            }
+
+            function appendPayloadLog(title, text) {
+                if (!debugEnabled) return;
+                payloadLog.style.display = 'block';
+                payloadEntries.unshift(
+                    `title=${title}\n` +
+                    `len=${text.length}\n` +
+                    `json=${JSON.stringify(text)}\n` +
+                    `codes=${toCharCodes(text)}`
+                );
+                payloadEntries = payloadEntries.slice(0, 8);
+                payloadLog.textContent = payloadEntries.join('\n\n-----\n\n');
+            }
 
             function formatUptime(secs) {
                 const d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
@@ -351,7 +426,7 @@
             applyDetectUrls();
 
             const socket = io({ query: { token: (new URLSearchParams(window.location.search)).get('token') || "{{ token }}" }, reconnectionAttempts: 5 });
-            socket.on('connect', () => { statusEl.innerText = "Connected"; statusEl.style.color = "#34c759"; });
+            socket.on('connect', () => { statusEl.innerText = "Connected"; statusEl.style.color = "#34c759"; updateDebugHud('socket.connect', 'connected'); });
             socket.on('disconnect', (r) => { 
                 statusEl.innerText = "Disconnected (" + r + ")"; 
                 statusEl.style.color = "#ff9f0a"; 
@@ -360,6 +435,7 @@
                 document.getElementById('connectBtn').disabled = false;
                 connectedAt = null; 
                 document.getElementById('uptime-section').style.display = 'none'; 
+                updateDebugHud('socket.disconnect', r);
             });
 
             function resize() { if (fitAddon) fitAddon.fit(); if (socket.connected) socket.emit('resize', { cols: term.cols, rows: term.rows }); }
@@ -382,7 +458,12 @@
 
             term.onData(data => { if (socket.connected) socket.emit('ssh_input', { data }); });
             socket.on('ssh_output', data => {
-                if (data.data.includes('[ERROR]')) {
+                appendPayloadLog('socket.ssh_output', data.data || '');
+                updateDebugHud(
+                    'socket.ssh_output',
+                    `type=${data.message_type || 'terminal'} len=${(data.data || '').length}\n${escapeForDebug(data.data || '')}`
+                );
+                if (data.message_type === 'connection_error') {
                     errorEl.innerText = data.data.replace('[ERROR]', '').trim(); errorEl.style.display = 'block';
                     document.getElementById('connectBtn').innerText = "Connect to SSH"; document.getElementById('connectBtn').disabled = false;
                 } else {

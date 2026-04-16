@@ -146,7 +146,14 @@ def on_start_ssh(data):
         bridges[request.sid] = bridge
         socketio.start_background_task(target=bridge.read_from_ssh)
     else:
-        socketio.emit('ssh_output', {'data': f'\r\n[ERROR] Connection Failed: {err}\r\n'}, room=request.sid)
+        socketio.emit(
+            'ssh_output',
+            {
+                'data': f'\r\n[ERROR] Connection Failed: {err}\r\n',
+                'message_type': 'connection_error',
+            },
+            room=request.sid,
+        )
 
 @socketio.on('ssh_input')
 def on_ssh_input(data):
