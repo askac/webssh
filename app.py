@@ -59,7 +59,7 @@ class SSHBridge:
                 allow_agent=True if allow_keys else False,
                 look_for_keys=allow_keys
             )
-            self.channel = self.ssh.invoke_shell(term='xterm', width=80, height=24)
+            self.channel = self.ssh.invoke_shell(term='xterm-256color', width=80, height=24)
             self.channel.setblocking(0)
             print(f"[+] SSH connection established for {self.sid}")
             return True, None
