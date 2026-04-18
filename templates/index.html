@@ -95,6 +95,44 @@
         #controls input { display: block; width: 100%; margin-bottom: 15px; padding: 10px; background: #333; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
         #controls button { width: 100%; padding: 12px; background: #0a84ff; border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; }
         #controls button:hover { background: #007aff; }
+        .action-box {
+            display: none;
+            margin-bottom: 14px;
+            padding: 12px;
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            color: #ddd;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .action-question {
+            margin-top: 10px;
+            color: #fff;
+            font-weight: 600;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .action-buttons button {
+            width: auto;
+            flex: 1;
+            margin: 0;
+        }
+        .action-primary {
+            background: #0a84ff !important;
+        }
+        .action-primary:hover {
+            background: #007aff !important;
+        }
+        .action-secondary {
+            background: #444 !important;
+        }
+        .action-secondary:hover {
+            background: #555 !important;
+        }
         
         /* Status Bar */
         #status-bar { position: absolute; bottom: 0; left: 0; right: 0; background: #111; color: #888; font-size: 12px; padding: 2px 10px; z-index: 50; border-top: 1px solid #222; display: flex; align-items: center; }
@@ -246,12 +284,20 @@
     <div id="controls" style="display: none;">
         <h2>WebSSH Login</h2>
         <div id="errorBox" class="error-msg"></div>
+        <div id="actionBox" class="action-box">
+            <div id="actionMessage"></div>
+            <div id="actionQuestion" class="action-question"></div>
+            <div class="action-buttons">
+                <button id="actionYesBtn" class="action-secondary">Yes</button>
+                <button id="actionNoBtn" class="action-primary">No</button>
+            </div>
+        </div>
         <div style="display: flex; gap: 10px;">
             <input type="text" id="host" placeholder="Host" value="127.0.0.1" style="flex: 3;">
             <input type="text" id="port" placeholder="Port" value="22" style="flex: 1;">
         </div>
         <input type="text" id="username" placeholder="Username" value="aska">
-        <input type="password" id="password" placeholder="Password / Key Passphrase (Optional)">
+        <input type="password" id="password" placeholder="Password (Optional)">
         <button id="connectBtn">Connect to SSH</button>
     </div>
     
@@ -351,11 +397,18 @@
             const terminalContainer = document.getElementById('terminal');
             const statusEl = document.getElementById('socketStatus');
             const errorEl = document.getElementById('errorBox');
+            const actionBox = document.getElementById('actionBox');
+            const actionMessageEl = document.getElementById('actionMessage');
+            const actionQuestionEl = document.getElementById('actionQuestion');
+            const actionYesBtn = document.getElementById('actionYesBtn');
+            const actionNoBtn = document.getElementById('actionNoBtn');
             const debugHud = document.getElementById('debug-hud');
             const payloadLog = document.getElementById('payload-log');
             const debugEnabled = (new URLSearchParams(window.location.search)).get('debug') === '1';
             let connectedAt = null;
             let payloadEntries = [];
+            let pendingAction = null;
+            let pendingReconnect = null;
 
             function escapeForDebug(text) {
                 return text
@@ -441,20 +494,77 @@
             function resize() { if (fitAddon) fitAddon.fit(); if (socket.connected) socket.emit('resize', { cols: term.cols, rows: term.rows }); }
             window.addEventListener('resize', resize);
 
-            const doConnect = () => {
+            function showError(message) {
+                errorEl.innerText = message;
+                errorEl.style.display = 'block';
+            }
+
+            function hideError() {
                 errorEl.style.display = 'none';
-                socket.emit('start_ssh', { 
-                    host: document.getElementById('host').value, 
-                    port: document.getElementById('port').value, 
-                    username: document.getElementById('username').value, 
-                    password: document.getElementById('password').value 
-                });
-                document.getElementById('connectBtn').innerText = "Connecting..."; document.getElementById('connectBtn').disabled = true;
+                errorEl.innerText = '';
+            }
+
+            function hideActionPrompt() {
+                pendingAction = null;
+                actionBox.style.display = 'none';
+                actionMessageEl.innerText = '';
+                actionQuestionEl.innerText = '';
+            }
+
+            function showActionPrompt(message, question, actionType) {
+                pendingAction = actionType;
+                actionMessageEl.innerText = message || '';
+                actionQuestionEl.innerText = question || '';
+                actionBox.style.display = 'block';
+                setTimeout(() => actionNoBtn.focus(), 0);
+            }
+
+            function resetConnectButton() {
+                document.getElementById('connectBtn').innerText = "Connect to SSH";
+                document.getElementById('connectBtn').disabled = false;
+            }
+
+            function getConnectionFormData() {
+                return {
+                    host: document.getElementById('host').value,
+                    port: document.getElementById('port').value,
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                };
+            }
+
+            function submitConnection(formData) {
+                hideError();
+                hideActionPrompt();
+                socket.emit('start_ssh', formData);
+                document.getElementById('connectBtn').innerText = "Connecting...";
+                document.getElementById('connectBtn').disabled = true;
+            }
+
+            const doConnect = () => {
+                pendingReconnect = null;
+                submitConnection(getConnectionFormData());
             };
             document.getElementById('connectBtn').onclick = doConnect;
             ['host', 'port', 'username', 'password'].forEach(id => {
                 document.getElementById(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') doConnect(); });
             });
+
+            actionYesBtn.onclick = () => {
+                if (pendingAction !== 'offer_localhost_key_setup') return;
+                pendingReconnect = getConnectionFormData();
+                hideActionPrompt();
+                document.getElementById('connectBtn').innerText = "Setting up key...";
+                document.getElementById('connectBtn').disabled = true;
+                socket.emit('setup_localhost_key_access', {
+                    username: document.getElementById('username').value
+                });
+            };
+
+            actionNoBtn.onclick = () => {
+                hideActionPrompt();
+                resetConnectButton();
+            };
 
             term.onData(data => { if (socket.connected) socket.emit('ssh_input', { data }); });
             socket.on('ssh_output', data => {
@@ -464,8 +574,24 @@
                     `type=${data.message_type || 'terminal'} len=${(data.data || '').length}\n${escapeForDebug(data.data || '')}`
                 );
                 if (data.message_type === 'connection_error') {
-                    errorEl.innerText = data.data.replace('[ERROR]', '').trim(); errorEl.style.display = 'block';
-                    document.getElementById('connectBtn').innerText = "Connect to SSH"; document.getElementById('connectBtn').disabled = false;
+                    showError(data.data.replace('[ERROR]', '').trim());
+                    resetConnectButton();
+                    if (data.action_type === 'offer_localhost_key_setup') {
+                        showActionPrompt(data.action_message, data.action_question, data.action_type);
+                    } else {
+                        hideActionPrompt();
+                    }
+                } else if (data.message_type === 'setup_result') {
+                    hideActionPrompt();
+                    if (data.setup_status === 'success' && pendingReconnect) {
+                        showError(data.data || 'Localhost key setup completed. Reconnecting...');
+                        submitConnection(pendingReconnect);
+                        pendingReconnect = null;
+                    } else {
+                        pendingReconnect = null;
+                        showError(data.data || 'Localhost key setup completed.');
+                        resetConnectButton();
+                    }
                 } else {
                     if (document.getElementById('controls').style.display !== 'none') {
                         document.getElementById('controls').style.display = 'none'; connectedAt = new Date(); document.getElementById('uptime-section').style.display = 'inline'; resize(); setTimeout(() => term.focus(), 100);
