@@ -16,7 +16,7 @@ A lightweight, web-based SSH terminal with advanced features, designed to run on
   - **256-color & True Color Support**: Full support for modern CLI applications.
 - **Smart UX**:
   - **Select-to-Copy & Clear**: Professional terminal behavior where selection is automatically copied and cleared upon mouse release.
-  - **Smart Key Auth**: Automatically attempts local SSH key authentication for `127.0.0.1` connections.
+  - **Smart Key Auth**: Automatically attempts local SSH public key authentication for localhost targets, with optional key passphrase support from the password field.
   - **Draggable Context Menu**: Feature-rich menu with Paste, Google Search, and PiP options.
 - **Advanced Capabilities**:
   - **URL Overlay**: Open URLs or image links in a resizable, draggable overlay window without leaving the terminal.
@@ -43,6 +43,25 @@ curl -fsSL https://raw.githubusercontent.com/askac/webssh/main/install.sh | bash
 1. Clone the repository.
 2. Run `./run.sh` (Linux/macOS/WSL) or `run.bat` (Windows).
 3. Open the generated URL in your browser.
+
+### Localhost SSH Key Setup
+
+If you want passwordless localhost login in WebSSH, your local SSH server must trust your public key.
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+Verify it first with the system SSH client:
+
+```bash
+ssh 127.0.0.1
+```
+
+WebSSH uses your local private key for localhost targets. The server side must have the matching public key in `~/.ssh/authorized_keys`.
 
 ## Acknowledgements & Copyright
 

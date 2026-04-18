@@ -4,6 +4,7 @@ import subprocess
 import paramiko
 import secrets
 import socket
+from pathlib import Path
 from flask import Flask, render_template, request, abort, make_response
 from flask_socketio import SocketIO, emit
 
@@ -36,29 +37,145 @@ DEFAULT_PORT = int(os.getenv('WEBSSH_PORT', '5000'))
 class SSHBridge:
     def __init__(self, sid):
         self.sid = sid
+        self.ssh = None
+        self._reset_ssh_client()
+        self.channel = None
+
+    def _reset_ssh_client(self):
+        if self.ssh:
+            self.ssh.close()
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.channel = None
+
+    @staticmethod
+    def _is_local_target(host):
+        if not host:
+            return False
+        normalized = host.strip().lower()
+        return normalized in {'127.0.0.1', 'localhost', '::1'}
+
+    @staticmethod
+    def _iter_local_private_key_files():
+        ssh_dir = Path.home() / '.ssh'
+        key_names = (
+            'id_ed25519',
+            'id_ecdsa',
+            'id_rsa',
+            'id_dsa',
+            'id_ed25519_sk',
+            'id_ecdsa_sk',
+        )
+        for key_name in key_names:
+            key_path = ssh_dir / key_name
+            if key_path.is_file():
+                yield key_path
+
+    @staticmethod
+    def _load_private_key(key_path, passphrase=None):
+        key_types = []
+        for key_type_name in ('Ed25519Key', 'ECDSAKey', 'RSAKey', 'DSSKey'):
+            key_type = getattr(paramiko, key_type_name, None)
+            if key_type is not None:
+                key_types.append(key_type)
+        last_error = None
+        for key_type in key_types:
+            try:
+                return key_type.from_private_key_file(str(key_path), password=passphrase)
+            except paramiko.PasswordRequiredException:
+                raise
+            except paramiko.SSHException as exc:
+                last_error = exc
+        if last_error:
+            raise last_error
+        raise paramiko.SSHException(f"Unsupported key format: {key_path}")
+
+    def _connect_with_local_keys(self, host, port, user, password):
+        auth_errors = []
+        passphrase = password or None
+
+        try:
+            self._reset_ssh_client()
+            self.ssh.connect(
+                host,
+                port=int(port),
+                username=user,
+                password=None,
+                timeout=15,
+                allow_agent=True,
+                look_for_keys=True,
+            )
+            print(f"[+] Local key auth succeeded via agent/default keys for {self.sid}")
+            return True, None
+        except paramiko.AuthenticationException as exc:
+            auth_errors.append(f"agent/default keys: {exc}")
+        except Exception as exc:
+            auth_errors.append(f"agent/default keys: {exc}")
+
+        for key_path in self._iter_local_private_key_files():
+            try:
+                pkey = self._load_private_key(key_path, passphrase=passphrase)
+            except paramiko.PasswordRequiredException:
+                auth_errors.append(f"{key_path.name}: passphrase required")
+                continue
+            except Exception as exc:
+                auth_errors.append(f"{key_path.name}: {exc}")
+                continue
+
+            try:
+                self._reset_ssh_client()
+                self.ssh.connect(
+                    host,
+                    port=int(port),
+                    username=user,
+                    password=None,
+                    pkey=pkey,
+                    timeout=15,
+                    allow_agent=False,
+                    look_for_keys=False,
+                )
+                print(f"[+] Local key auth succeeded via {key_path.name} for {self.sid}")
+                return True, None
+            except Exception as exc:
+                auth_errors.append(f"{key_path.name}: {exc}")
+
+        return False, '; '.join(auth_errors)
 
     def connect(self, host, port, user, password=None):
         try:
             pwd = password if password else ""
             print(f"[*] Attempting SSH connection for {user} at {host}:{port}...")
-            
-            # --- FIXED: Smart Key Auth for localhost ---
-            # If host is localhost and password is empty, try local keys
-            is_localhost = host in ['127.0.0.1', 'localhost', '::1']
-            allow_keys = True if (is_localhost and not pwd) else False
-            
-            self.ssh.connect(
-                host, 
-                port=int(port), 
-                username=user, 
-                password=pwd if not allow_keys else None, 
-                timeout=15,
-                allow_agent=True if allow_keys else False,
-                look_for_keys=allow_keys
-            )
+
+            is_localhost = self._is_local_target(host)
+            if is_localhost:
+                success, key_error = self._connect_with_local_keys(host, port, user, pwd)
+                if not success and pwd:
+                    print(f"[*] Local key auth failed for {self.sid}; falling back to password auth.")
+                    self._reset_ssh_client()
+                    self.ssh.connect(
+                        host,
+                        port=int(port),
+                        username=user,
+                        password=pwd,
+                        timeout=15,
+                        allow_agent=False,
+                        look_for_keys=False,
+                    )
+                elif not success:
+                    raise paramiko.AuthenticationException(
+                        f"Local public key auth failed: {key_error or 'no usable local key found'}"
+                    )
+            else:
+                self._reset_ssh_client()
+                self.ssh.connect(
+                    host,
+                    port=int(port),
+                    username=user,
+                    password=pwd,
+                    timeout=15,
+                    allow_agent=False,
+                    look_for_keys=False,
+                )
+
             self.channel = self.ssh.invoke_shell(term='xterm-256color', width=80, height=24)
             self.channel.setblocking(0)
             print(f"[+] SSH connection established for {self.sid}")
