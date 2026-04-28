@@ -3,13 +3,14 @@ import sys
 import subprocess
 import base64
 import getpass
-import ctypes
+import logging
 import paramiko
 import secrets
 import socket
+import time
 from pathlib import Path
-from flask import Flask, render_template, request, abort, make_response
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, request, abort, make_response, redirect
+from flask_socketio import SocketIO
 
 ASYNC_MODE = os.getenv('WEBSSH_ASYNC_MODE', '').strip().lower()
 if not ASYNC_MODE:
@@ -26,9 +27,10 @@ if ASYNC_MODE == 'eventlet':
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 ACCESS_TOKEN = secrets.token_urlsafe(16)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Default to threading for consistent cross-platform behavior.
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode=ASYNC_MODE, logger=False, engineio_logger=False)
+socketio = SocketIO(app, async_mode=ASYNC_MODE, logger=False, engineio_logger=False)
 
 # SSH Configuration
 SSH_HOST = '127.0.0.1'
@@ -36,6 +38,18 @@ SSH_PORT = 22
 SSH_USER = os.getenv('USER', 'aska')
 DEFAULT_BIND_HOST = os.getenv('WEBSSH_HOST', '').strip()
 DEFAULT_PORT = int(os.getenv('WEBSSH_PORT', '5000'))
+SSH_TERM = 'xterm-256color'
+MAX_SSH_INPUT_BYTES = 65536
+MAX_PASSWORD_BYTES = 4096
+MAX_HOST_LENGTH = 255
+MAX_USERNAME_LENGTH = 128
+SESSION_COOKIE_NAME = 'webssh_session'
+SESSION_COOKIE_MAX_AGE = 12 * 60 * 60
+LOCALHOST_KEY_SETUP_TTL_SECONDS = 120
+MIN_TERMINAL_COLS = 2
+MAX_TERMINAL_COLS = 500
+MIN_TERMINAL_ROWS = 2
+MAX_TERMINAL_ROWS = 500
 LOCAL_PUBLIC_KEY_TYPES = {
     'ssh-ed25519',
     'ssh-rsa',
@@ -54,11 +68,15 @@ class SSHBridge:
         self._reset_ssh_client()
         self.channel = None
 
-    def _reset_ssh_client(self):
+    def _reset_ssh_client(self, trust_unknown_host=False):
         if self.ssh:
             self.ssh.close()
         self.ssh = paramiko.SSHClient()
-        self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.ssh.load_system_host_keys()
+        if trust_unknown_host:
+            self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        else:
+            self.ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
 
     @staticmethod
     def _is_local_target(host):
@@ -168,15 +186,6 @@ class SSHBridge:
         availability = self._get_local_key_setup_availability(user)
         return availability['can_offer']
 
-    @staticmethod
-    def _is_windows_admin_account():
-        if os.name != 'nt':
-            return False
-        try:
-            return bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except Exception:
-            return False
-
     def _get_local_key_setup_availability(self, user):
         current_user = getpass.getuser()
         if user != current_user:
@@ -186,30 +195,29 @@ class SSHBridge:
                 'error_code': 'localhost_key_setup_unsupported_user',
             }
 
-        if os.name == 'nt' and self._is_windows_admin_account():
+        if os.name == 'nt':
             return {
                 'can_offer': False,
                 'reason': (
-                    'Automatic localhost key setup is not supported for this Windows account. '
+                    'Automatic localhost key setup is not supported on native Windows yet. '
                     'Windows OpenSSH may require a different authorized keys file, such as '
                     '%USERPROFILE%\\.ssh\\authorized_keys for a regular user or '
                     'C:\\ProgramData\\ssh\\administrators_authorized_keys for an administrator '
                     'account. Please add your public key manually, then try again.'
                 ),
-                'error_code': 'localhost_key_setup_unsupported_windows_admin',
+                'error_code': 'localhost_key_setup_unsupported_windows',
             }
 
         return {'can_offer': True}
 
-    def _append_local_public_key_to_authorized_keys(self):
-        missing_entries = self._get_missing_local_public_keys()
-        if not missing_entries:
+    def _append_public_key_entry_to_authorized_keys(self, entry):
+        fingerprint = (entry['key_type'], entry['key_body'])
+        if fingerprint in self._read_authorized_key_fingerprints():
             return False, {
                 'status': 'already_configured',
                 'message': 'Your local public key is already present in ~/.ssh/authorized_keys.',
             }
 
-        entry = missing_entries[0]
         ssh_dir = Path.home() / '.ssh'
         authorized_keys_path = self._get_authorized_keys_path()
 
@@ -239,6 +247,16 @@ class SSHBridge:
                 'Try connecting to localhost again.'
             ),
         }
+
+    def _append_local_public_key_to_authorized_keys(self):
+        missing_entries = self._get_missing_local_public_keys()
+        if not missing_entries:
+            return False, {
+                'status': 'already_configured',
+                'message': 'Your local public key is already present in ~/.ssh/authorized_keys.',
+            }
+
+        return self._append_public_key_entry_to_authorized_keys(missing_entries[0])
 
     def _build_local_key_setup_hint(self):
         message = (
@@ -288,7 +306,7 @@ class SSHBridge:
         passphrase = password or None
 
         try:
-            self._reset_ssh_client()
+            self._reset_ssh_client(trust_unknown_host=True)
             self.ssh.connect(
                 host,
                 port=int(port),
@@ -316,7 +334,7 @@ class SSHBridge:
                 continue
 
             try:
-                self._reset_ssh_client()
+                self._reset_ssh_client(trust_unknown_host=True)
                 self.ssh.connect(
                     host,
                     port=int(port),
@@ -337,7 +355,7 @@ class SSHBridge:
     def connect(self, host, port, user, password=None):
         try:
             pwd = password if password else ""
-            print(f"[*] Attempting SSH connection for {user} at {host}:{port}...")
+            print(f"[*] Attempting SSH connection for {user!r} at {host!r}:{port}...")
 
             is_localhost = self._is_local_target(host)
             if is_localhost and not pwd:
@@ -360,7 +378,7 @@ class SSHBridge:
                         f"Local public key auth failed: {key_error or 'no usable local key found'}"
                     )
             else:
-                self._reset_ssh_client()
+                self._reset_ssh_client(trust_unknown_host=is_localhost)
                 self.ssh.connect(
                     host,
                     port=int(port),
@@ -371,7 +389,7 @@ class SSHBridge:
                     look_for_keys=False,
                 )
 
-            self.channel = self.ssh.invoke_shell(term='xterm-256color', width=80, height=24)
+            self.channel = self.ssh.invoke_shell(term=SSH_TERM, width=80, height=24)
             self.channel.setblocking(0)
             print(f"[+] SSH connection established for {self.sid}")
             return True, None
@@ -392,16 +410,32 @@ class SSHBridge:
                 if self.channel.recv_ready():
                     data = self.channel.recv(4096).decode('utf-8', errors='ignore')
                     if data:
-                        socketio.emit('ssh_output', {'data': data}, room=self.sid)
+                        socketio.emit('ssh_output', {'message_type': 'terminal', 'data': data}, room=self.sid)
                 
                 if self.channel.exit_status_ready():
                     print(f"[*] SSH session exited for {self.sid}")
-                    socketio.emit('ssh_output', {'data': '\r\n[SSH Session Closed]\r\n'}, room=self.sid)
+                    socketio.emit(
+                        'ssh_output',
+                        {'message_type': 'ssh_closed', 'message': 'SSH session closed.'},
+                        room=self.sid,
+                    )
                     break
             except Exception as e:
                 print(f"[!] Read error: {e}")
+                socketio.emit(
+                    'ssh_output',
+                    {
+                        'message_type': 'ssh_closed',
+                        'message': 'SSH connection closed due to a read error.',
+                        'error_code': 'ssh_read_error',
+                    },
+                    room=self.sid,
+                )
                 break
         print(f"[*] SSH read loop terminated for {self.sid}")
+        if bridges.get(self.sid) is self:
+            bridges.pop(self.sid, None)
+            close_bridge(self)
 
     def write_to_ssh(self, data):
         if self.channel:
@@ -418,44 +452,196 @@ class SSHBridge:
                 print(f"[!] Resize error: {e}")
 
 bridges = {}
+pending_localhost_key_setups = {}
+active_sessions = {}
+
+def is_valid_access_token(token):
+    if not isinstance(token, str):
+        return False
+    return secrets.compare_digest(token.strip(), ACCESS_TOKEN)
+
+def is_valid_session(session_token):
+    if not isinstance(session_token, str):
+        return False
+    expires_at = active_sessions.get(session_token)
+    if not expires_at:
+        return False
+    if time.time() > expires_at:
+        active_sessions.pop(session_token, None)
+        return False
+    return True
+
+def has_control_chars(value):
+    return any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
+
+def add_common_headers(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+def close_bridge(bridge):
+    if not bridge:
+        return
+    if bridge.channel:
+        try:
+            bridge.channel.close()
+        except Exception:
+            pass
+        bridge.channel = None
+    if bridge.ssh:
+        try:
+            bridge.ssh.close()
+        except Exception:
+            pass
+
+def emit_connection_error(sid, message, error_code=None, action_type=None, action_message=None,
+                          action_question=None, action_id=None):
+    socketio.emit(
+        'ssh_output',
+        {
+            'message_type': 'connection_error',
+            'message': message,
+            'error_code': error_code,
+            'action_type': action_type,
+            'action_message': action_message,
+            'action_question': action_question,
+            'action_id': action_id,
+        },
+        room=sid,
+    )
+
+def validate_start_ssh_payload(data):
+    if not isinstance(data, dict):
+        return None, 'Invalid connection payload.'
+
+    host = data.get('host', SSH_HOST)
+    if not isinstance(host, str):
+        return None, 'Host must be a string.'
+    host = host.strip()
+    if not host or len(host) > MAX_HOST_LENGTH:
+        return None, 'Host is empty or too long.'
+    if has_control_chars(host):
+        return None, 'Host contains invalid control characters.'
+
+    try:
+        port = int(data.get('port', SSH_PORT))
+    except (TypeError, ValueError):
+        return None, 'Port must be a number.'
+    if port < 1 or port > 65535:
+        return None, 'Port must be between 1 and 65535.'
+
+    user = data.get('username', SSH_USER)
+    if not isinstance(user, str):
+        return None, 'Username must be a string.'
+    user = user.strip()
+    if not user or len(user) > MAX_USERNAME_LENGTH:
+        return None, 'Username is empty or too long.'
+    if has_control_chars(user):
+        return None, 'Username contains invalid control characters.'
+
+    password = data.get('password') or ''
+    if not isinstance(password, str):
+        return None, 'Password must be a string.'
+    if len(password.encode('utf-8', errors='ignore')) > MAX_PASSWORD_BYTES:
+        return None, 'Password is too long.'
+
+    return {
+        'host': host,
+        'port': port,
+        'username': user,
+        'password': password,
+    }, None
+
+def parse_terminal_size(data):
+    if not isinstance(data, dict):
+        return None
+    try:
+        cols = int(data.get('cols'))
+        rows = int(data.get('rows'))
+    except (TypeError, ValueError):
+        return None
+    if cols < MIN_TERMINAL_COLS or cols > MAX_TERMINAL_COLS:
+        return None
+    if rows < MIN_TERMINAL_ROWS or rows > MAX_TERMINAL_ROWS:
+        return None
+    return cols, rows
+
+def build_session_response():
+    session_token = secrets.token_urlsafe(32)
+    active_sessions[session_token] = time.time() + SESSION_COOKIE_MAX_AGE
+    response = redirect('/')
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        session_token,
+        max_age=SESSION_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite='Strict',
+    )
+    return add_common_headers(response)
+
+def get_pending_localhost_key_setup(sid, action_id):
+    pending_setup = pending_localhost_key_setups.get(sid)
+    if not pending_setup:
+        return None, 'localhost_key_setup_no_pending_action'
+    if time.time() > pending_setup['expires_at']:
+        pending_localhost_key_setups.pop(sid, None)
+        return None, 'localhost_key_setup_expired'
+    if not isinstance(action_id, str) or not secrets.compare_digest(action_id, pending_setup['action_id']):
+        return None, 'localhost_key_setup_no_pending_action'
+    return pending_setup, None
 
 @app.route('/')
 def index():
     token = request.args.get('token')
-    if not token or token.strip() != ACCESS_TOKEN:
+    if is_valid_access_token(token):
+        return build_session_response()
+
+    if not is_valid_session(request.cookies.get(SESSION_COOKIE_NAME)):
         return abort(403, description="Invalid or missing access token.")
 
-    # Add no-cache headers to ensure the browser always gets the latest token
-    response = make_response(render_template('index.html', token=token))
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    return response
+    response = make_response(render_template('index.html', ssh_term=SSH_TERM))
+    return add_common_headers(response)
 
 @socketio.on('connect')
 def on_connect():
-    # Use 'token' instead of 't' to avoid collision with Socket.IO's cache buster
-    token = request.args.get('token')
-
-    # If the token from client doesn't match the current server token
-    if not token or token.strip() != ACCESS_TOKEN:
+    if not is_valid_session(request.cookies.get(SESSION_COOKIE_NAME)):
         print(f"[!] Unauthorized WebSocket attempt: {request.sid}")
-        print(f"    Expected: {ACCESS_TOKEN}")
-        print(f"    Received: {token}")
         return False 
     print(f"[+] Client connected: {request.sid}")
 
 
 @socketio.on('start_ssh')
 def on_start_ssh(data):
-    host = data.get('host', '127.0.0.1')
-    port = data.get('port', 22)
-    user = data.get('username', SSH_USER)
-    password = data.get('password')
+    payload, validation_error = validate_start_ssh_payload(data)
+    if validation_error:
+        emit_connection_error(request.sid, validation_error, error_code='invalid_start_ssh_payload')
+        return
+
+    pending_localhost_key_setups.pop(request.sid, None)
+    old_bridge = bridges.pop(request.sid, None)
+    close_bridge(old_bridge)
+
+    host = payload['host']
+    port = payload['port']
+    user = payload['username']
+    password = payload['password']
     
     bridge = SSHBridge(request.sid)
     success, result = bridge.connect(host, port, user, password)
     if success:
         bridges[request.sid] = bridge
+        socketio.emit(
+            'ssh_output',
+            {
+                'message_type': 'ssh_connected',
+                'term': SSH_TERM,
+                'cols': 80,
+                'rows': 24,
+            },
+            room=request.sid,
+        )
         socketio.start_background_task(target=bridge.read_from_ssh)
     else:
         message = 'Connection failed.'
@@ -472,38 +658,65 @@ def on_start_ssh(data):
         elif result:
             message = str(result)
 
-        socketio.emit(
-            'ssh_output',
-            {
-                'data': f'\r\n[ERROR] Connection Failed: {message}\r\n',
-                'message_type': 'connection_error',
-                'error_code': error_code,
-                'action_type': action_type,
-                'action_message': action_message,
-                'action_question': action_question,
-            },
-            room=request.sid,
+        action_id = None
+        if action_type == 'offer_localhost_key_setup':
+            missing_entries = bridge._get_missing_local_public_keys()
+            if missing_entries:
+                action_id = secrets.token_urlsafe(16)
+                pending_localhost_key_setups[request.sid] = {
+                    'action_id': action_id,
+                    'host': host,
+                    'port': port,
+                    'username': user,
+                    'key_entry': missing_entries[0],
+                    'expires_at': time.time() + LOCALHOST_KEY_SETUP_TTL_SECONDS,
+                }
+            else:
+                action_type = None
+                action_message = None
+                action_question = None
+
+        emit_connection_error(
+            request.sid,
+            message,
+            error_code=error_code,
+            action_type=action_type,
+            action_message=action_message,
+            action_question=action_question,
+            action_id=action_id,
         )
 
 @socketio.on('setup_localhost_key_access')
 def on_setup_localhost_key_access(data):
-    user = (data or {}).get('username', SSH_USER)
+    data = data if isinstance(data, dict) else {}
+    action_id = data.get('action_id')
+    pending_setup, pending_error_code = get_pending_localhost_key_setup(request.sid, action_id)
     bridge = SSHBridge(request.sid)
 
-    if not bridge._can_offer_local_key_setup(user):
+    if not pending_setup:
+        result = {
+            'status': 'failed',
+            'message': 'No pending localhost key setup request is available.',
+            'error_code': pending_error_code,
+        }
+    elif not bridge._can_offer_local_key_setup(pending_setup['username']):
+        pending_localhost_key_setups.pop(request.sid, None)
         result = {
             'status': 'failed',
             'message': 'Automatic localhost key setup is only available for the current local user.',
+            'error_code': 'localhost_key_setup_unavailable',
         }
     else:
-        _, result = bridge._append_local_public_key_to_authorized_keys()
+        pending_localhost_key_setups.pop(request.sid, None)
+        _, result = bridge._append_public_key_entry_to_authorized_keys(pending_setup['key_entry'])
 
     socketio.emit(
         'ssh_output',
         {
-            'data': result['message'],
             'message_type': 'setup_result',
+            'message': result['message'],
             'setup_status': result['status'],
+            'error_code': result.get('error_code'),
         },
         room=request.sid,
     )
@@ -511,23 +724,30 @@ def on_setup_localhost_key_access(data):
 @socketio.on('ssh_input')
 def on_ssh_input(data):
     bridge = bridges.get(request.sid)
-    if bridge:
-        bridge.write_to_ssh(data.get('data'))
+    if not bridge or not isinstance(data, dict):
+        return
+    ssh_input = data.get('data')
+    if not isinstance(ssh_input, str):
+        return
+    if len(ssh_input.encode('utf-8', errors='ignore')) > MAX_SSH_INPUT_BYTES:
+        return
+    bridge.write_to_ssh(ssh_input)
 
 @socketio.on('resize')
 def on_resize(data):
     bridge = bridges.get(request.sid)
-    if bridge:
-        bridge.resize_ssh(data.get('cols'), data.get('rows'))
+    size = parse_terminal_size(data)
+    if bridge and size:
+        cols, rows = size
+        bridge.resize_ssh(cols, rows)
 
 @socketio.on('disconnect')
 def on_disconnect():
+    pending_localhost_key_setups.pop(request.sid, None)
     bridge = bridges.pop(request.sid, None)
     if bridge:
         print(f"[*] Cleaning up SSH session for {request.sid}")
-        if bridge.channel:
-            bridge.channel.close()
-        bridge.ssh.close()
+        close_bridge(bridge)
     print(f"[-] Client disconnected: {request.sid}")
 
 def is_wsl():
@@ -604,7 +824,7 @@ if __name__ == '__main__':
     
     sys.stdout.flush()
 
-    run_kwargs = {'host': bind_host, 'port': port}
+    run_kwargs = {'host': bind_host, 'port': port, 'log_output': False}
     if ASYNC_MODE == 'threading':
         run_kwargs['allow_unsafe_werkzeug'] = True
 
